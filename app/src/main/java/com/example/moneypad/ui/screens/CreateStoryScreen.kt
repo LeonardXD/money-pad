@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,27 +26,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
+val STORY_GENRES = listOf(
+    "Romance", "Fantasy", "Mystery", "Sci-Fi", "Horror",
+    "Action", "LGBTQIA+", "Werewolf", "New Adult", "Short Story",
+    "Teen Fiction", "Historical Fiction", "Paranormal", "Humor",
+    "Contemporary Lit", "Diverse Lit", "Thriller", "Adventure",
+    "Fan Fiction", "Non-Fiction", "Poetry"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateStoryScreen(
     onNavigateBack: () -> Unit,
-    onStoryCreated: () -> Unit,
+    onStoryCreated: (storyId: String) -> Unit,
     viewModel: StoryViewModel
 ) {
     var title by remember { mutableStateOf("") }
-    var genres by remember { mutableStateOf("") }
+    var selectedGenres by remember { mutableStateOf(setOf<String>()) }
     var overview by remember { mutableStateOf("") }
-    var copyright by remember { mutableStateOf("All Rights Reserved") }
     var language by remember { mutableStateOf("English") }
     var isCompleted by remember { mutableStateOf(false) }
     var isMature by remember { mutableStateOf(false) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var genreDropdownExpanded by remember { mutableStateOf(false) }
+
+    val lastCreatedStoryId by viewModel.lastCreatedStoryId.collectAsState()
+
+    // Navigate once the story ID is available
+    LaunchedEffect(lastCreatedStoryId) {
+        lastCreatedStoryId?.let { id ->
+            viewModel.clearLastCreatedStoryId()
+            onStoryCreated(id)
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        imageUri = uri
-    }
+    ) { uri: Uri? -> imageUri = uri }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -97,79 +114,137 @@ fun CreateStoryScreen(
                                 modifier = Modifier.size(32.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
-                            Text("Cover", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                            Text(
+                                "Cover",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(16.dp))
-                
+
                 Column(modifier = Modifier.weight(1f)) {
                     TextField(
                         value = title,
                         onValueChange = { title = it },
-                        placeholder = { Text("Story Title", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Gray) },
+                        placeholder = {
+                            Text(
+                                "Story Title",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray
+                            )
+                        },
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
                             focusedIndicatorColor = MaterialTheme.colorScheme.primary,
                             unfocusedIndicatorColor = Color.LightGray
                         ),
-                        textStyle = LocalTextStyle.current.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                        textStyle = LocalTextStyle.current.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            
-            Text("Story Details", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+
+            Text(
+                "Story Details",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
             Spacer(modifier = Modifier.height(12.dp))
 
             OutlinedTextField(
                 value = overview,
                 onValueChange = { overview = it },
                 label = { Text("Description") },
-                modifier = Modifier.fillMaxWidth().height(120.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
                 shape = RoundedCornerShape(12.dp)
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Genre dropdown
+            ExposedDropdownMenuBox(
+                expanded = genreDropdownExpanded,
+                onExpandedChange = { genreDropdownExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = if (selectedGenres.isEmpty()) ""
+                    else selectedGenres.joinToString(", "),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Genre") },
+                    placeholder = { Text("Select genres") },
+                    trailingIcon = {
+                        Icon(
+                            if (genreDropdownExpanded) Icons.Default.ArrowDropUp
+                            else Icons.Default.ArrowDropDown,
+                            contentDescription = null
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                ExposedDropdownMenu(
+                    expanded = genreDropdownExpanded,
+                    onDismissRequest = { genreDropdownExpanded = false }
+                ) {
+                    STORY_GENRES.forEach { genre ->
+                        val isSelected = genre in selectedGenres
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = null // handled by the row click
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(genre)
+                                }
+                            },
+                            onClick = {
+                                selectedGenres = if (isSelected) {
+                                    selectedGenres - genre
+                                } else {
+                                    selectedGenres + genre
+                                }
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = genres,
-                onValueChange = { genres = it },
-                label = { Text("Genre (e.g. Romance, Sci-Fi)") },
+                value = language,
+                onValueChange = { language = it },
+                label = { Text("Language") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
-                    value = language,
-                    onValueChange = { language = it },
-                    label = { Text("Language") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = copyright,
-                    onValueChange = { copyright = it },
-                    label = { Text("Copyright") },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
+            Spacer(modifier = Modifier.height(12.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isCompleted, onCheckedChange = { isCompleted = it })
                 Text("Mark as Completed")
             }
-            
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isMature, onCheckedChange = { isMature = it })
                 Text("Mature Content (18+)")
@@ -180,15 +255,29 @@ fun CreateStoryScreen(
             Button(
                 onClick = {
                     if (title.isNotBlank() && overview.isNotBlank()) {
-                        viewModel.addStory(title, genres, overview, imageUri?.toString(), isPublished = false)
-                        onStoryCreated()
+                        viewModel.addStory(
+                            title,
+                            selectedGenres.joinToString(", "),
+                            overview,
+                            imageUri?.toString(),
+                            isPublished = false
+                        )
+                        // Navigation happens via LaunchedEffect on lastCreatedStoryId
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(12.dp),
+                enabled = title.isNotBlank() && overview.isNotBlank()
             ) {
-                Text("Create Story Dashboard", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Create Story Dashboard",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
+
             Spacer(modifier = Modifier.height(16.dp))
         }
     }

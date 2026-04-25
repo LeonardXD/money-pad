@@ -1,5 +1,6 @@
 package com.example.moneypad.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -37,16 +38,63 @@ fun WritePartScreen(
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
-    
+    var showSaveDraftDialog by remember { mutableStateOf(false) }
+
     val isDark = isSystemInDarkTheme()
     val bgColor = if (isDark) Color.Black else Color.White
+
+    // Save as draft and go back
+    fun saveDraftAndExit() {
+        viewModel.savePartAsDraft(storyId, title, content)
+        onNavigateBack()
+    }
+
+    // Intercept the system back gesture/button
+    BackHandler {
+        if (title.isNotBlank() || content.isNotBlank()) {
+            showSaveDraftDialog = true
+        } else {
+            onNavigateBack()
+        }
+    }
+
+    // Save-draft confirmation dialog
+    if (showSaveDraftDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDraftDialog = false },
+            title = { Text("Save as Draft?") },
+            text = { Text("Do you want to save your chapter as a draft before leaving?") },
+            confirmButton = {
+                Button(onClick = {
+                    showSaveDraftDialog = false
+                    saveDraftAndExit()
+                }) {
+                    Text("Save Draft")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showSaveDraftDialog = false
+                    onNavigateBack()
+                }) {
+                    Text("Discard")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(onClick = {
+                        if (title.isNotBlank() || content.isNotBlank()) {
+                            showSaveDraftDialog = true
+                        } else {
+                            onNavigateBack()
+                        }
+                    }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -59,11 +107,13 @@ fun WritePartScreen(
                             }
                         },
                         shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.padding(end = 8.dp).height(36.dp)
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .height(36.dp)
                     ) {
                         Text("Publish", fontSize = 14.sp)
                     }
-                    
+
                     Box {
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -73,6 +123,13 @@ fun WritePartScreen(
                             onDismissRequest = { expanded = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text("Save as Draft") },
+                                onClick = {
+                                    expanded = false
+                                    saveDraftAndExit()
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Unpublish") },
                                 onClick = { expanded = false }
                             )
@@ -81,15 +138,18 @@ fun WritePartScreen(
                                 onClick = { expanded = false }
                             )
                             DropdownMenuItem(
-                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                text = {
+                                    Text(
+                                        "Delete",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                },
                                 onClick = { expanded = false }
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = bgColor
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = bgColor)
             )
         },
         bottomBar = {
@@ -105,13 +165,27 @@ fun WritePartScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.FormatSize, contentDescription = "Font Size") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.FormatBold, contentDescription = "Bold") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.FormatItalic, contentDescription = "Italic") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.FormatUnderlined, contentDescription = "Underline") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.Highlight, contentDescription = "Highlight") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.Image, contentDescription = "Inline Image") }
-                    IconButton(onClick = { /* Tool */ }) { Icon(Icons.Default.FavoriteBorder, contentDescription = "Like") }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.FormatSize, contentDescription = "Font Size")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.FormatBold, contentDescription = "Bold")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.FormatUnderlined, contentDescription = "Underline")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.Highlight, contentDescription = "Highlight")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.Image, contentDescription = "Inline Image")
+                    }
+                    IconButton(onClick = { }) {
+                        Icon(Icons.Default.FavoriteBorder, contentDescription = "Like")
+                    }
                 }
             }
         }
@@ -128,51 +202,85 @@ fun WritePartScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        RoundedCornerShape(8.dp)
+                    )
                     .clickable { /* Add Media */ },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Icon(Icons.Default.Image, contentDescription = "Add Image", tint = Color.Gray, modifier = Modifier.size(32.dp))
-                        Icon(Icons.Default.OndemandVideo, contentDescription = "Add Video", tint = Color.Gray, modifier = Modifier.size(32.dp))
+                        Icon(
+                            Icons.Default.Image,
+                            contentDescription = "Add Image",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Icon(
+                            Icons.Default.OndemandVideo,
+                            contentDescription = "Add Video",
+                            tint = Color.Gray,
+                            modifier = Modifier.size(32.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Tap to add Header Media", color = Color.Gray, fontSize = 14.sp)
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             // Chapter Title
             TextField(
                 value = title,
                 onValueChange = { title = it },
-                placeholder = { Text("Chapter Title", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.Gray) },
+                placeholder = {
+                    Text(
+                        "Chapter Title",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = MaterialTheme.colorScheme.primary,
                     unfocusedIndicatorColor = Color.LightGray
                 ),
-                textStyle = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = if (isDark) Color.White else Color.Black),
+                textStyle = TextStyle(
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color.White else Color.Black
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Body Writing Area
             TextField(
                 value = content,
                 onValueChange = { content = it },
-                placeholder = { Text("Tap here to start writing...", fontSize = 16.sp, color = Color.Gray) },
+                placeholder = {
+                    Text(
+                        "Tap here to start writing...",
+                        fontSize = 16.sp,
+                        color = Color.Gray
+                    )
+                },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                textStyle = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, color = if (isDark) Color.White else Color.Black),
+                textStyle = TextStyle(
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                    color = if (isDark) Color.White else Color.Black
+                ),
                 modifier = Modifier.fillMaxSize()
             )
         }

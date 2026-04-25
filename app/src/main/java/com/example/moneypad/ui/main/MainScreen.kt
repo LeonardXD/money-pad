@@ -15,14 +15,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.moneypad.ui.ViewModelFactory
 import com.example.moneypad.ui.screens.*
-
 import com.example.moneypad.ui.theme.ThemeViewModel
 
 @Composable
 fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogout: () -> Unit) {
     val navController = rememberNavController()
     val storyViewModel: StoryViewModel = viewModel(factory = factory)
-    
+
     Scaffold(
         bottomBar = {
             NavigationBar(
@@ -31,7 +30,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                
+
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = null) },
@@ -63,16 +62,16 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             startDestination = BottomNavItem.Explore.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(BottomNavItem.Explore.route) { 
-                ExploreNavigation(storyViewModel, factory) 
+            composable(BottomNavItem.Explore.route) {
+                ExploreNavigation(storyViewModel, factory)
             }
-            composable(BottomNavItem.Write.route) { 
-                WriteNavigation(storyViewModel) 
+            composable(BottomNavItem.Write.route) {
+                WriteNavigation(storyViewModel)
             }
-            composable(BottomNavItem.Earnings.route) { 
-                EarningsScreen(viewModel(factory = factory)) 
+            composable(BottomNavItem.Earnings.route) {
+                EarningsScreen(viewModel(factory = factory))
             }
-            composable(BottomNavItem.Profile.route) { 
+            composable(BottomNavItem.Profile.route) {
                 ProfileScreen(
                     viewModel = viewModel(factory = factory),
                     themeViewModel = themeViewModel,
@@ -86,7 +85,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
 @Composable
 fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory) {
     val exploreNavController = rememberNavController()
-    
+
     NavHost(navController = exploreNavController, startDestination = "explore_list") {
         composable("explore_list") {
             ExploreScreen(
@@ -100,8 +99,8 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
             StoryViewScreen(
                 storyId = storyId,
                 onNavigateBack = { exploreNavController.popBackStack() },
-                onNavigateToReadPart = { storyId, partId -> 
-                    exploreNavController.navigate("read/$storyId/$partId") 
+                onNavigateToReadPart = { sId, partId ->
+                    exploreNavController.navigate("read/$sId/$partId")
                 },
                 onNavigateToRelatedStory = { relatedId ->
                     exploreNavController.navigate("story_view/$relatedId")
@@ -135,7 +134,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
 @Composable
 fun WriteNavigation(storyViewModel: StoryViewModel) {
     val writeNavController = rememberNavController()
-    
+
     NavHost(navController = writeNavController, startDestination = "list") {
         composable("list") {
             WriteScreen(
@@ -147,7 +146,13 @@ fun WriteNavigation(storyViewModel: StoryViewModel) {
         composable("create") {
             CreateStoryScreen(
                 onNavigateBack = { writeNavController.popBackStack() },
-                onStoryCreated = { writeNavController.popBackStack() },
+                // After creating a story, jump straight to the write-part screen
+                onStoryCreated = { storyId ->
+                    // Pop "create" off the stack so back from WritePartScreen goes to "list"
+                    writeNavController.navigate("write_part/$storyId") {
+                        popUpTo("create") { inclusive = true }
+                    }
+                },
                 viewModel = storyViewModel
             )
         }

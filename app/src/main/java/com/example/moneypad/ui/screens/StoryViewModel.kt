@@ -7,6 +7,7 @@ import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.StoryPart
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
@@ -25,6 +26,14 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     private val _currentParts = MutableStateFlow<List<StoryPart>>(emptyList())
     val currentParts = _currentParts.asStateFlow()
 
+    // Holds the ID of the most recently created story so navigation can pick it up
+    private val _lastCreatedStoryId = MutableStateFlow<String?>(null)
+    val lastCreatedStoryId: StateFlow<String?> = _lastCreatedStoryId.asStateFlow()
+
+    fun clearLastCreatedStoryId() {
+        _lastCreatedStoryId.value = null
+    }
+
     fun getStoryById(id: String) {
         viewModelScope.launch {
             _currentStory.value = repository.getStoryById(id)
@@ -34,9 +43,16 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
-    fun addStory(title: String, genres: String, overview: String, coverImageUrl: String? = null, isPublished: Boolean = false) {
+    fun addStory(
+        title: String,
+        genres: String,
+        overview: String,
+        coverImageUrl: String? = null,
+        isPublished: Boolean = false
+    ) {
         viewModelScope.launch {
-            repository.createStory(title, genres, overview, coverImageUrl, isPublished)
+            val id = repository.createStoryAndReturnId(title, genres, overview, coverImageUrl, isPublished)
+            _lastCreatedStoryId.value = id
         }
     }
 
@@ -55,15 +71,31 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
+    // Saves current part as draft (does the same as addPartToStory — stored but not published)
+    fun savePartAsDraft(storyId: String, partTitle: String, content: String) {
+        if (partTitle.isBlank() && content.isBlank()) return
+        viewModelScope.launch {
+            val currentPartsCount = _currentParts.value.size
+            repository.addStoryPart(
+                storyId,
+                partTitle.ifBlank { "Untitled Chapter" },
+                content,
+                currentPartsCount + 1
+            )
+        }
+    }
+
     fun recordRead(storyId: String) {
         viewModelScope.launch {
             repository.recordRead(storyId)
         }
     }
 
-    fun search(query: String, genre: String = "All"): Flow<List<Story>> = repository.searchStories(query, genre)
-    
+    fun search(query: String, genre: String = "All"): Flow<List<Story>> =
+        repository.searchStories(query, genre)
+
     fun searchAuthors(query: String) = repository.searchAuthors(query)
 
-    fun getStoriesByAuthor(authorId: String): Flow<List<Story>> = repository.getPublishedStoriesByAuthor(authorId)
+    fun getStoriesByAuthor(authorId: String): Flow<List<Story>> =
+        repository.getPublishedStoriesByAuthor(authorId)
 }
