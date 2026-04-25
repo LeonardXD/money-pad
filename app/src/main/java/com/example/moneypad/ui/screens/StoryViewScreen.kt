@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
-// Temporary mock data structure for reviews
 data class MockReview(val username: String, val rating: Int, val comment: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,25 +46,20 @@ fun StoryViewScreen(
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Summary, 1 = Parts
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Summary", "Parts")
-    
-    // State for the More Options dropdown
+
     var showMenu by remember { mutableStateOf(false) }
-    
-    // State for the Review Dialog
     var showReviewDialog by remember { mutableStateOf(false) }
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
-    
-    // State for Reviews list
-    var mockReviews by remember { 
+    var mockReviews by remember {
         mutableStateOf(
             listOf(
                 MockReview("bookworm99", 5, "Absolutely loved this! The character development is amazing."),
                 MockReview("reader_x", 4, "Great plot, but the pacing was a bit slow in the middle.")
             )
-        ) 
+        )
     }
 
     LaunchedEffect(storyId) {
@@ -91,15 +85,12 @@ fun StoryViewScreen(
                     ) {
                         DropdownMenuItem(
                             text = { Text("Share") },
-                            onClick = { 
-                                showMenu = false 
-                                // TODO: Implement Share functionality
-                            }
+                            onClick = { showMenu = false }
                         )
                         DropdownMenuItem(
                             text = { Text("Make a review") },
-                            onClick = { 
-                                showMenu = false 
+                            onClick = {
+                                showMenu = false
                                 showReviewDialog = true
                             }
                         )
@@ -110,23 +101,23 @@ fun StoryViewScreen(
                 )
             )
         },
+        // ── KEY FIX: no Surface wrapper, no elevation, same background color ──
         bottomBar = {
             story?.let {
-                Surface(
-                    color = MaterialTheme.colorScheme.background,
-                    tonalElevation = 8.dp,
-                    shadowElevation = 8.dp
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                            .navigationBarsPadding(),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
-                            onClick = { 
+                            onClick = {
                                 if (parts.isNotEmpty()) {
                                     onNavigateToReadPart(storyId, parts.first().id)
                                 }
@@ -136,30 +127,44 @@ fun StoryViewScreen(
                                 .height(50.dp),
                             shape = RoundedCornerShape(25.dp)
                         ) {
-                            Text("Start reading", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Start reading",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                        
+
                         IconButton(
                             onClick = { /* TODO: Open comments */ },
                             modifier = Modifier
                                 .size(50.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
                         ) {
-                            Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comment")
+                            Icon(
+                                Icons.Default.ChatBubbleOutline,
+                                contentDescription = "Comment"
+                            )
                         }
-                        
+
                         IconButton(
                             onClick = { /* TODO: Download */ },
                             modifier = Modifier
                                 .size(50.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
                         ) {
                             Icon(Icons.Default.Download, contentDescription = "Download")
                         }
                     }
                 }
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         story?.let { currentStory ->
             LazyColumn(
@@ -167,14 +172,13 @@ fun StoryViewScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Story Header Section
+                // Story Header
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        // Cover Image
                         Box(
                             modifier = Modifier
                                 .width(120.dp)
@@ -194,14 +198,15 @@ fun StoryViewScreen(
                                     Icons.Default.Book,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.align(Alignment.Center).size(48.dp)
+                                    modifier = Modifier
+                                        .align(Alignment.Center)
+                                        .size(48.dp)
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
 
-                        // Details
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = currentStory.title,
@@ -217,16 +222,23 @@ fun StoryViewScreen(
                                 color = Color.Gray
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                        .background(
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -235,53 +247,86 @@ fun StoryViewScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                            
+
                             Spacer(modifier = Modifier.height(24.dp))
-                            
-                            // Engagement stats
+
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Visibility, contentDescription = "Views", modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                    Icon(
+                                        Icons.Default.Visibility,
+                                        contentDescription = "Views",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = Color.Gray
+                                    )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("${currentStory.readCount}", fontSize = 14.sp, color = Color.Gray)
+                                    Text(
+                                        "${currentStory.readCount}",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.StarBorder, contentDescription = "Likes", modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                    Icon(
+                                        Icons.Default.StarBorder,
+                                        contentDescription = "Likes",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = Color.Gray
+                                    )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("${currentStory.likes}", fontSize = 14.sp, color = Color.Gray)
+                                    Text(
+                                        "${currentStory.likes}",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Comments", modifier = Modifier.size(16.dp), tint = Color.Gray)
+                                    Icon(
+                                        Icons.Default.ChatBubbleOutline,
+                                        contentDescription = "Comments",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = Color.Gray
+                                    )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("${currentStory.commentsCount}", fontSize = 14.sp, color = Color.Gray)
+                                    Text(
+                                        "${currentStory.commentsCount}",
+                                        fontSize = 14.sp,
+                                        color = Color.Gray
+                                    )
                                 }
                             }
                         }
                     }
                 }
-                
+
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.DarkGray.copy(alpha = 0.5f))
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = Color.DarkGray.copy(alpha = 0.5f)
+                        )
                         Text(
                             text = "Advertisement",
                             fontSize = 12.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(horizontal = 12.dp)
                         )
-                        HorizontalDivider(modifier = Modifier.weight(1f), color = Color.DarkGray.copy(alpha = 0.5f))
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = Color.DarkGray.copy(alpha = 0.5f)
+                        )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // Tabs
                 item {
                     TabRow(
                         selectedTabIndex = selectedTab,
@@ -292,12 +337,13 @@ fun StoryViewScreen(
                             Tab(
                                 selected = selectedTab == index,
                                 onClick = { selectedTab = index },
-                                text = { 
+                                text = {
                                     Text(
-                                        title, 
-                                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Medium,
+                                        title,
+                                        fontWeight = if (selectedTab == index) FontWeight.Bold
+                                        else FontWeight.Medium,
                                         fontSize = 16.sp
-                                    ) 
+                                    )
                                 }
                             )
                         }
@@ -306,23 +352,28 @@ fun StoryViewScreen(
                 }
 
                 if (selectedTab == 0) {
-                    // Summary Tab
                     item {
                         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            // Metadata Row
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Book, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(
+                                    Icons.Outlined.Book,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                val wordCount = parts.sumOf { it.content.split(Regex("\\s+")).count { word -> word.isNotBlank() } }
+                                val wordCount = parts.sumOf {
+                                    it.content.split(Regex("\\s+"))
+                                        .count { w -> w.isNotBlank() }
+                                }
                                 Text(
                                     text = "Mature • Complete • $wordCount words",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
-                            
+
                             Spacer(modifier = Modifier.height(24.dp))
-                            
+
                             var isExpanded by remember { mutableStateOf(false) }
                             Text(
                                 text = currentStory.overview,
@@ -341,10 +392,9 @@ fun StoryViewScreen(
                                         .clickable { isExpanded = true }
                                 )
                             }
-                            
+
                             Spacer(modifier = Modifier.height(32.dp))
-                            
-                            // Reviews Section
+
                             Text(
                                 text = "Reviews",
                                 fontSize = 18.sp,
@@ -352,12 +402,20 @@ fun StoryViewScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            
+
                             if (mockReviews.isEmpty()) {
-                                Text("No reviews yet. Be the first to review!", color = Color.Gray, fontSize = 14.sp)
+                                Text(
+                                    "No reviews yet. Be the first to review!",
+                                    color = Color.Gray,
+                                    fontSize = 14.sp
+                                )
                             } else {
                                 mockReviews.forEach { review ->
-                                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(bottom = 16.dp)
+                                    ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 text = review.username,
@@ -368,7 +426,9 @@ fun StoryViewScreen(
                                             Row {
                                                 for (i in 1..5) {
                                                     Icon(
-                                                        imageVector = if (i <= review.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                                        imageVector = if (i <= review.rating)
+                                                            Icons.Default.Star
+                                                        else Icons.Default.StarBorder,
                                                         contentDescription = null,
                                                         tint = Color(0xFFFFD700),
                                                         modifier = Modifier.size(14.dp)
@@ -385,14 +445,18 @@ fun StoryViewScreen(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(80.dp)) // Extra padding for bottom bar
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                 } else {
-                    // Parts Tab
                     if (parts.isEmpty()) {
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text("No parts available yet.", color = Color.Gray)
                             }
                         }
@@ -411,22 +475,21 @@ fun StoryViewScreen(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Published recently", // Mocked date
+                                    text = "Published recently",
                                     fontSize = 12.sp,
                                     color = Color.Gray
                                 )
                             }
                         }
                         item {
-                            Spacer(modifier = Modifier.height(80.dp)) // Extra padding for bottom bar
+                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                 }
             }
         }
     }
-    
-    // Review Dialog
+
     if (showReviewDialog) {
         AlertDialog(
             onDismissRequest = { showReviewDialog = false },
@@ -442,7 +505,8 @@ fun StoryViewScreen(
                         for (i in 1..5) {
                             IconButton(onClick = { reviewRating = i }) {
                                 Icon(
-                                    imageVector = if (i <= reviewRating) Icons.Default.Star else Icons.Default.StarBorder,
+                                    imageVector = if (i <= reviewRating) Icons.Default.Star
+                                    else Icons.Default.StarBorder,
                                     contentDescription = "Star $i",
                                     tint = Color(0xFFFFD700),
                                     modifier = Modifier.size(32.dp)
@@ -463,19 +527,19 @@ fun StoryViewScreen(
             confirmButton = {
                 Button(onClick = {
                     if (reviewComment.isNotBlank()) {
-                        mockReviews = mockReviews + MockReview("currentUser", reviewRating, reviewComment)
+                        mockReviews = mockReviews + MockReview(
+                            "currentUser",
+                            reviewRating,
+                            reviewComment
+                        )
                         reviewComment = ""
                         reviewRating = 5
                         showReviewDialog = false
                     }
-                }) {
-                    Text("Submit")
-                }
+                }) { Text("Submit") }
             },
             dismissButton = {
-                TextButton(onClick = { showReviewDialog = false }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showReviewDialog = false }) { Text("Cancel") }
             }
         )
     }
