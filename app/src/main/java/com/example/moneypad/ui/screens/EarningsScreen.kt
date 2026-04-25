@@ -1,16 +1,10 @@
 package com.example.moneypad.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,14 +22,12 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     var showWithdrawDialog by remember { mutableStateOf(false) }
 
-    // Colors
     val isDark = isSystemInDarkTheme()
     val balanceColor = if (isDark) Color(0xFFFFD700) else Color(0xFF6200EE)
 
-    val conversionRate = 60.0 // USD to PHP
-    val coinToPhpRate = 0.001 // 1000 coins = 1 PHP
+    val conversionRate = 60.0
+    val coinToPhpRate = 0.001
 
-    // Calculate dynamic totals for the UI based on user's db fields
     val authorUsd = uiState.user?.authorIncome ?: 0.0
     val authorPhp = authorUsd * conversionRate
 
@@ -61,51 +53,88 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             // Balance Card
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Current Balance: $${String.format("%.3f", totalUsd)} = ${String.format("%.3f", totalPhp)}",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = balanceColor
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Author's Income: $${String.format("%.3f", authorUsd)} = ${String.format("%.3f", authorPhp)}",
-                            fontSize = 14.sp,
+                            text = "Current Balance",
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Reader's Income: %,d coin = ${String.format("%.3f", readerPhp)}".format(readerCoins),
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "$${String.format("%.3f", totalUsd)}",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = balanceColor
                         )
+                        Text(
+                            text = "≈ ₱${String.format("%.2f", totalPhp)}",
+                            fontSize = 16.sp,
+                            color = balanceColor.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Author's Income", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "$${String.format("%.3f", authorUsd)}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            VerticalDivider(
+                                modifier = Modifier.height(36.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Reader's Coins", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "%,d coins".format(readerCoins),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // Withdrawal Section
+            // Withdrawal Button
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text("Withdrawal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Text("Available Methods: GCash, PayMaya", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    Text(
+                        "Withdrawal",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Available Methods: GCash, PayMaya",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = { showWithdrawDialog = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -114,36 +143,89 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                     ) {
                         Text("Withdraw Funds")
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Instructions
-                    Text("📤 Withdrawal Instructions", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("1. Tap the 'Withdraw Funds' button above.", fontSize = 14.sp, color = Color.Gray)
-                    Text("2. Enter the amount you wish to withdraw.", fontSize = 14.sp, color = Color.Gray)
-                    Text("3. Choose your preferred withdrawal method (GCash or PayMaya).", fontSize = 14.sp, color = Color.Gray)
-                    Text("4. Enter your account details correctly.", fontSize = 14.sp, color = Color.Gray)
-                    Text("5. Confirm the transaction and wait for processing.", fontSize = 14.sp, color = Color.Gray)
-
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Notice
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("⏳ Processing Time Notice", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("• Expected arrival: 2 to 14 days", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("🕒 Withdrawal Process Details:", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                            Text("• Withdrawals from 6 AM to 3 PM will be processed within the same day (except weekends and holidays, which may vary).", fontSize = 14.sp)
-                            Text("• Requests made from 3 PM to 5 AM will be processed the next day.", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("⚠️ Delays may occur as all withdrawals are manually reviewed and processed.", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            // Instructions Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "📤 Withdrawal Instructions",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        listOf(
+                            "1. Tap the 'Withdraw Funds' button above.",
+                            "2. Enter the amount you wish to withdraw.",
+                            "3. Choose your preferred method (GCash or PayMaya).",
+                            "4. Enter your account details correctly.",
+                            "5. Confirm the transaction and wait for processing."
+                        ).forEach { step ->
+                            Text(
+                                text = step,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 2.dp)
+                            )
                         }
+                    }
+                }
+            }
+
+            // Notice Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "⏳ Processing Time Notice",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "• Expected arrival: 2 to 14 days",
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "🕒 Withdrawal Process Details:",
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "• Withdrawals from 6 AM to 3 PM will be processed within the same day (except weekends and holidays).",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "• Requests from 3 PM to 5 AM will be processed the next day.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "⚠️ All withdrawals are manually reviewed and processed. Delays may occur.",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }
@@ -163,7 +245,11 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
 }
 
 @Composable
-fun WithdrawDialog(onDismiss: () -> Unit, onConfirm: (Double, String, String) -> Unit, currentBalance: Double) {
+fun WithdrawDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Double, String, String) -> Unit,
+    currentBalance: Double
+) {
     var amount by remember { mutableStateOf("") }
     var method by remember { mutableStateOf("GCash") }
     var accountInfo by remember { mutableStateOf("") }
@@ -181,7 +267,6 @@ fun WithdrawDialog(onDismiss: () -> Unit, onConfirm: (Double, String, String) ->
                     RadioButton(selected = method == "PayMaya", onClick = { method = "PayMaya" })
                     Text("PayMaya")
                 }
-                
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
@@ -189,9 +274,7 @@ fun WithdrawDialog(onDismiss: () -> Unit, onConfirm: (Double, String, String) ->
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
-                
                 Spacer(modifier = Modifier.height(8.dp))
-                
                 OutlinedTextField(
                     value = accountInfo,
                     onValueChange = { accountInfo = it },
@@ -201,15 +284,15 @@ fun WithdrawDialog(onDismiss: () -> Unit, onConfirm: (Double, String, String) ->
             }
         },
         confirmButton = {
-            Button(
-                onClick = { 
-                    val amt = amount.toDoubleOrNull() ?: 0.0
-                    if (amt > 0.0 && amt <= currentBalance && accountInfo.isNotBlank()) {
-                        onConfirm(amt, method, accountInfo)
-                    }
+            Button(onClick = {
+                val amt = amount.toDoubleOrNull() ?: 0.0
+                if (amt > 0.0 && amt <= currentBalance && accountInfo.isNotBlank()) {
+                    onConfirm(amt, method, accountInfo)
                 }
-            ) { Text("Confirm") }
+            }) { Text("Confirm") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
     )
 }
