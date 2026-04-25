@@ -1,0 +1,1 @@
+Colors to be used in the mobile app: #F5E9DA #47AA57 #EF3F30
