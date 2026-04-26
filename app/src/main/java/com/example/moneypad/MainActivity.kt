@@ -6,26 +6,20 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.moneypad.data.AppDatabase
+import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.ui.ViewModelFactory
 import com.example.moneypad.ui.auth.LoginScreen
 import com.example.moneypad.ui.auth.SignupScreen
 import com.example.moneypad.ui.main.MainScreen
 import com.example.moneypad.ui.theme.MoneyPadTheme
-
-import androidx.compose.runtime.remember
-import com.example.moneypad.data.AppDatabase
-import com.example.moneypad.data.MoneyPadRepository
-import com.example.moneypad.ui.ViewModelFactory
-import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.viewmodel.compose.viewModel
-
 import com.example.moneypad.ui.theme.ThemeViewModel
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,15 +32,16 @@ class MainActivity : ComponentActivity() {
             val factory = remember { ViewModelFactory(repository) }
             val themeViewModel: ThemeViewModel = viewModel(factory = factory)
             val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
-            
-            val startDestination = if (repository.currentUserId.isNotEmpty()) "main" else "login"
+
+            // Respect 7-day session expiry
+            val startDestination = if (repository.hasActiveSession()) "main" else "login"
 
             LaunchedEffect(Unit) {
                 repository.initUser()
             }
 
             MoneyPadTheme(darkTheme = isDarkTheme) {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
                     MoneyPadApp(factory, themeViewModel, startDestination)
                 }
             }
@@ -57,12 +52,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MoneyPadApp(factory: ViewModelFactory, themeViewModel: ThemeViewModel, startDestination: String) {
     val navController = rememberNavController()
-    
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
             LoginScreen(
                 onNavigateToSignup = { navController.navigate("signup") },
-                onLoginSuccess = { 
+                onLoginSuccess = {
                     navController.navigate("main") {
                         popUpTo("login") { inclusive = true }
                     }
@@ -73,7 +68,7 @@ fun MoneyPadApp(factory: ViewModelFactory, themeViewModel: ThemeViewModel, start
         composable("signup") {
             SignupScreen(
                 onNavigateToLogin = { navController.navigate("login") },
-                onSignupSuccess = { 
+                onSignupSuccess = {
                     navController.navigate("login") {
                         popUpTo("signup") { inclusive = true }
                     }

@@ -13,6 +13,7 @@ data class SignupUiState(
     val email: String = "",
     val password: String = "",
     val confirmPassword: String = "",
+    val referrerUsername: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSuccess: Boolean = false
@@ -22,60 +23,40 @@ class SignupViewModel(private val repository: MoneyPadRepository) : ViewModel() 
     private val _uiState = MutableStateFlow(SignupUiState())
     val uiState: StateFlow<SignupUiState> = _uiState.asStateFlow()
 
-    fun onUsernameChange(username: String) {
-        _uiState.value = _uiState.value.copy(username = username)
-    }
-
-    fun onEmailChange(email: String) {
-        _uiState.value = _uiState.value.copy(email = email)
-    }
-
-    fun onPasswordChange(password: String) {
-        _uiState.value = _uiState.value.copy(password = password)
-    }
-
-    fun onConfirmPasswordChange(confirmPassword: String) {
-        _uiState.value = _uiState.value.copy(confirmPassword = confirmPassword)
-    }
+    fun onUsernameChange(v: String) = update { copy(username = v) }
+    fun onEmailChange(v: String) = update { copy(email = v) }
+    fun onPasswordChange(v: String) = update { copy(password = v) }
+    fun onConfirmPasswordChange(v: String) = update { copy(confirmPassword = v) }
+    fun onReferrerUsernameChange(v: String) = update { copy(referrerUsername = v) }
 
     fun signup() {
-        val state = uiState.value
-        if (state.username.isBlank() || state.email.isBlank() || state.password.isBlank()) {
-            _uiState.value = _uiState.value.copy(error = "All fields are required")
-            return
+        val s = uiState.value
+        when {
+            s.username.isBlank() || s.email.isBlank() || s.password.isBlank() ->
+                return update { copy(error = "All required fields must be filled") }
+            !s.username.matches(Regex("^[a-z].*")) ->
+                return update { copy(error = "Username must start with a lowercase letter") }
+            s.password.length !in 8..16 ->
+                return update { copy(error = "Password must be 8–16 characters") }
+            !s.password.any { it.isUpperCase() } || !s.password.any { it.isLowerCase() } ||
+                    !s.password.any { it.isDigit() } || !s.password.any { !it.isLetterOrDigit() } ->
+                return update { copy(error = "Password needs uppercase, lowercase, number & symbol") }
+            s.password != s.confirmPassword ->
+                return update { copy(error = "Passwords do not match") }
         }
-        if (!state.username.matches(Regex("^[a-z].*"))) {
-            _uiState.value = _uiState.value.copy(error = "Username must start with a lowercase letter")
-            return
-        }
-        if (state.password.length !in 8..16) {
-            _uiState.value = _uiState.value.copy(error = "Password must be 8-16 characters long")
-            return
-        }
-        if (!state.password.any { it.isUpperCase() } ||
-            !state.password.any { it.isLowerCase() } ||
-            !state.password.any { it.isDigit() } ||
-            !state.password.any { !it.isLetterOrDigit() }) {
-            _uiState.value = _uiState.value.copy(error = "Password must contain uppercase, lowercase, number, and symbol")
-            return
-        }
-        if (state.password != state.confirmPassword) {
-            _uiState.value = _uiState.value.copy(error = "Passwords do not match")
-            return
-        }
-        
-        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-        
+
+        update { copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val result = repository.signup(state.username, state.email, state.password)
+            val result = repository.signup(s.username, s.email, s.password, s.referrerUsername.trim())
             if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+                update { copy(isLoading = false, isSuccess = true) }
             } else {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false, 
-                    error = result.exceptionOrNull()?.message ?: "Signup failed"
-                )
+                update { copy(isLoading = false, error = result.exceptionOrNull()?.message ?: "Signup failed") }
             }
         }
+    }
+
+    private fun update(block: SignupUiState.() -> SignupUiState) {
+        _uiState.value = _uiState.value.block()
     }
 }

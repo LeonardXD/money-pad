@@ -17,7 +17,7 @@ import com.example.moneypad.data.model.*
         Follow::class,
         Review::class
     ],
-    version = 8,
+    version = 9,          // bumped from 8 → 9 for new User columns
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

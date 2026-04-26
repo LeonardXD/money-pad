@@ -16,7 +16,14 @@ data class User(
     val coverImageUrl: String? = null,
     val balance: Double = 0.0,
     val authorIncome: Double = 0.0,
-    val readerCoins: Int = 0
+    val readerCoins: Int = 0,
+    // New fields
+    val birthday: String = "",          // "YYYY-MM-DD"
+    val gender: String = "",            // "Male" | "Female" | "Non-binary" | "Prefer not to say"
+    val preferredGenres: String = "",   // comma-separated, max 5
+    val referredBy: String = "",        // username of referrer
+    val referralCount: Int = 0,         // how many users this user referred
+    val loginTimestamp: Long = 0L       // epoch ms of last login — used for 7-day session check
 )
 
 @Entity(tableName = "conversations")

@@ -20,11 +20,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Conversation
+import com.example.moneypad.data.model.Story
+import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.theme.ThemeViewModel
 
@@ -37,12 +39,26 @@ fun ProfileScreen(
     val user by viewModel.user.collectAsState()
     val storiesPublished by viewModel.storiesPublished.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
-    val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
-    
+    val followers by viewModel.followers.collectAsState()
+    val following by viewModel.following.collectAsState()
+
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("About", "Conversation")
-    
+    val tabs = listOf("About", "Stories", "Conversation")
+
     var showSettings by remember { mutableStateOf(false) }
+    var showSettingsScreen by remember { mutableStateOf(false) }
+    var showFollowersDialog by remember { mutableStateOf(false) }
+    var showFollowingDialog by remember { mutableStateOf(false) }
+
+    if (showSettingsScreen) {
+        SettingsScreen(
+            viewModel = viewModel,
+            themeViewModel = themeViewModel,
+            onNavigateBack = { showSettingsScreen = false },
+            onLogout = onLogout
+        )
+        return
+    }
 
     val profileImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -56,14 +72,32 @@ fun ProfileScreen(
         uri?.let { viewModel.updateProfile(user?.bio ?: "", user?.profileImageUrl, it.toString()) }
     }
 
+    // Followers dialog
+    if (showFollowersDialog) {
+        UserListDialog(
+            title = "Followers",
+            users = followers,
+            onDismiss = { showFollowersDialog = false }
+        )
+    }
+
+    // Following dialog
+    if (showFollowingDialog) {
+        UserListDialog(
+            title = "Following",
+            users = following,
+            onDismiss = { showFollowingDialog = false }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top Profile Header with Images
+        // ── Profile header ─────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
         ) {
-            // Cover Image
+            // Cover image
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +122,7 @@ fun ProfileScreen(
                 }
             }
 
-            // Settings Icon (Gear)
+            // Settings gear
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -96,50 +130,27 @@ fun ProfileScreen(
             ) {
                 IconButton(
                     onClick = { showSettings = true },
-                    modifier = Modifier
-                        .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
                 }
-                
+
                 DropdownMenu(
                     expanded = showSettings,
                     onDismissRequest = { showSettings = false }
                 ) {
                     DropdownMenuItem(
-                        text = { 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (isDarkTheme) "Light Mode" else "Dark Mode")
-                                Spacer(modifier = Modifier.weight(1f))
-                                Switch(
-                                    checked = isDarkTheme,
-                                    onCheckedChange = { 
-                                        themeViewModel.toggleTheme()
-                                    }
-                                )
-                            }
-                        },
-                        onClick = { themeViewModel.toggleTheme() }
-                    )
-                    Divider()
-                    DropdownMenuItem(
-                        text = { 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Logout", color = MaterialTheme.colorScheme.error)
-                            }
-                        },
+                        text = { Text("Settings") },
+                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                         onClick = {
                             showSettings = false
-                            viewModel.logout()
-                            onLogout()
+                            showSettingsScreen = true
                         }
                     )
                 }
             }
 
-            // Profile Image
+            // Profile image
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -165,7 +176,7 @@ fun ProfileScreen(
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.Default.Person,
+                            Icons.Default.Person,
                             contentDescription = "Profile Picture",
                             modifier = Modifier.size(60.dp),
                             tint = MaterialTheme.colorScheme.primary
@@ -177,7 +188,7 @@ fun ProfileScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // User Info
+        // ── User info ──────────────────────────────────────────────────────
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -187,28 +198,33 @@ fun ProfileScreen(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
+            // Email visible only to owner
             Text(
-                text = user?.email ?: "Loading...",
-                fontSize = 14.sp,
+                text = user?.email ?: "",
+                fontSize = 13.sp,
                 color = Color.Gray
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
-            // Stats Row
+
+            // Stats row — followers/following are tappable
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
-                StatItem(label = "Following", value = (user?.following ?: 0).toString())
+                Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
+                    StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
+                }
+                Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
+                    StatItem(label = "Following", value = (user?.following ?: 0).toString())
+                }
                 StatItem(label = "Stories", value = storiesPublished.toString())
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Tabs
+        // ── Tabs ───────────────────────────────────────────────────────────
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -219,17 +235,172 @@ fun ProfileScreen(
             }
         }
 
-        // Tab Content
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
-                0 -> AboutTab(user?.bio ?: "", onSaveBio = { newBio -> 
+                0 -> AboutTab(user?.bio ?: "", onSaveBio = { newBio ->
                     viewModel.updateProfile(newBio, user?.profileImageUrl, user?.coverImageUrl)
                 })
-                1 -> ConversationTabWithReplies(user?.id ?: "", conversations, viewModel)
+                1 -> ProfileStoriesTab(viewModel = viewModel)
+                2 -> ConversationTabWithReplies(user?.id ?: "", conversations, viewModel)
             }
         }
     }
 }
+
+// ── Followers / Following dialog ──────────────────────────────────────────────
+
+@Composable
+fun UserListDialog(title: String, users: List<User>, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.6f)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                if (users.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No users yet", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(users) { u ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (u.profileImageUrl != null) {
+                                        AsyncImage(
+                                            model = u.profileImageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(u.username, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Stories grid (own profile) ────────────────────────────────────────────────
+
+@Composable
+fun ProfileStoriesTab(viewModel: ProfileViewModel) {
+    val stories by viewModel.user.collectAsState()
+    // We load published stories for the current user via a dedicated flow
+    val storiesList by remember {
+        derivedStateOf { emptyList<Story>() }
+    }
+    // Use a real flow — call viewModel helper
+    val publishedStories by viewModel
+        .getPublishedStoriesForCurrentUser()
+        .collectAsState(initial = emptyList())
+
+    if (publishedStories.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No published stories yet.", color = Color.Gray)
+        }
+        return
+    }
+
+    val displayedStories = if (publishedStories.size > 6) publishedStories.take(6) else publishedStories
+    val hasMore = publishedStories.size > 6
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val chunked = displayedStories.chunked(2)
+        items(chunked) { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                row.forEach { story ->
+                    ProfileStoryItem(story = story, modifier = Modifier.weight(1f))
+                }
+                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+
+        if (hasMore) {
+            item {
+                TextButton(
+                    onClick = { /* future: navigate to full list */ },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("View All Stories →", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (story.coverImageUrl != null) {
+                    AsyncImage(
+                        model = story.coverImageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(Icons.Default.Book, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = story.title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${story.readCount} reads",
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
+            }
+        }
+    }
+}
+
+// ── Keep existing tabs unchanged ──────────────────────────────────────────────
 
 @Composable
 fun ConversationTabWithReplies(
@@ -255,11 +426,7 @@ fun ConversationTabWithReplies(
 }
 
 @Composable
-fun ConversationItemForProfile(
-    conv: Conversation,
-    userId: String,
-    viewModel: ProfileViewModel
-) {
+fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: ProfileViewModel) {
     val replies by viewModel.getReplies(conv.id).collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf("") }
@@ -272,7 +439,8 @@ fun ConversationItemForProfile(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                    modifier = Modifier.size(32.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -287,7 +455,6 @@ fun ConversationItemForProfile(
             Spacer(modifier = Modifier.height(4.dp))
             Text(conv.message)
 
-            // Replies
             if (replies.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
@@ -297,7 +464,8 @@ fun ConversationItemForProfile(
                     replies.forEach { reply ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier.size(24.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
+                                modifier = Modifier.size(24.dp).clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
@@ -335,7 +503,7 @@ fun ConversationItemForProfile(
                         },
                         enabled = replyText.isNotBlank()
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send Reply", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -359,9 +527,9 @@ fun AboutTab(bio: String, onSaveBio: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("About Me", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            IconButton(onClick = { 
+            IconButton(onClick = {
                 if (isEditing) onSaveBio(editedBio)
-                isEditing = !isEditing 
+                isEditing = !isEditing
             }) {
                 Icon(if (isEditing) Icons.Default.Save else Icons.Default.Edit, contentDescription = null)
             }

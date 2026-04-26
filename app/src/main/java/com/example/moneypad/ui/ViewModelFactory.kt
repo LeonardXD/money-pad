@@ -12,30 +12,21 @@ import com.example.moneypad.ui.theme.ThemeViewModel
 
 class ViewModelFactory(private val repository: MoneyPadRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(StoryViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return StoryViewModel(repository) as T
+        @Suppress("UNCHECKED_CAST")
+        return when {
+            modelClass.isAssignableFrom(StoryViewModel::class.java) ->
+                StoryViewModel(repository) as T
+            modelClass.isAssignableFrom(EarningsViewModel::class.java) ->
+                EarningsViewModel(repository) as T
+            modelClass.isAssignableFrom(ProfileViewModel::class.java) ->
+                ProfileViewModel(repository) as T
+            modelClass.isAssignableFrom(LoginViewModel::class.java) ->
+                LoginViewModel(repository) as T
+            modelClass.isAssignableFrom(SignupViewModel::class.java) ->
+                SignupViewModel(repository) as T
+            modelClass.isAssignableFrom(ThemeViewModel::class.java) ->
+                ThemeViewModel() as T
+            else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
         }
-        if (modelClass.isAssignableFrom(EarningsViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return EarningsViewModel(repository) as T
-        }
-        if (modelClass.isAssignableFrom(ProfileViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ProfileViewModel(repository) as T
-        }
-        if (modelClass.isAssignableFrom(LoginViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return LoginViewModel(repository) as T
-        }
-        if (modelClass.isAssignableFrom(SignupViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return SignupViewModel(repository) as T
-        }
-        if (modelClass.isAssignableFrom(ThemeViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return ThemeViewModel() as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
