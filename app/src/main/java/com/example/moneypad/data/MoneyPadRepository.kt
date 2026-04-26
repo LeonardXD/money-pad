@@ -1,24 +1,37 @@
 package com.example.moneypad.data
 
+import android.content.Context
 import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
-class MoneyPadRepository(private val dao: MoneyPadDao) {
+class MoneyPadRepository(private val context: Context, private val dao: MoneyPadDao) {
 
-    // Dynamic current user session
-    var currentUserId: String = ""
-    var currentUsername: String = ""
+    private val sharedPreferences = context.getSharedPreferences("moneypad_prefs", Context.MODE_PRIVATE)
+
+    var currentUserId: String = sharedPreferences.getString("userId", "") ?: ""
+    var currentUsername: String = sharedPreferences.getString("username", "") ?: ""
+
+    private fun saveLoginState(userId: String, username: String) {
+        sharedPreferences.edit()
+            .putString("userId", userId)
+            .putString("username", username)
+            .apply()
+    }
+
+    private fun clearLoginState() {
+        sharedPreferences.edit()
+            .remove("userId")
+            .remove("username")
+            .apply()
+    }
 
     suspend fun signup(username: String, email: String, password: String): Result<User> {
-        if (dao.getUserByUsername(username) != null) {
+        if (dao.getUserByUsername(username) != null)
             return Result.failure(Exception("Username already taken"))
-        }
-        if (dao.getUserByEmail(email) != null) {
+        if (dao.getUserByEmail(email) != null)
             return Result.failure(Exception("Email already registered"))
-        }
-
         val user = User(
             id = UUID.randomUUID().toString(),
             username = username,
@@ -26,16 +39,16 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
             password = password
         )
         dao.insertUser(user)
-
         currentUserId = user.id
         currentUsername = user.username
-
+        saveLoginState(currentUserId, currentUsername)
         return Result.success(user)
     }
 
     fun logout() {
         currentUserId = ""
         currentUsername = ""
+        clearLoginState()
     }
 
     suspend fun login(identifier: String, password: String): Result<User> {
@@ -43,6 +56,7 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
         return if (user != null) {
             currentUserId = user.id
             currentUsername = user.username
+            saveLoginState(currentUserId, currentUsername)
             Result.success(user)
         } else {
             Result.failure(Exception("Invalid username or password"))
@@ -51,9 +65,7 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
 
     fun getUser(userId: String): Flow<User?> = dao.getUser(userId)
 
-    suspend fun initUser() {
-        // Only init if database is empty or for first-time use
-    }
+    suspend fun initUser() {}
 
     fun getAllStories(): Flow<List<Story>> = dao.getAllStories()
 
@@ -66,63 +78,49 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
     suspend fun getStoryById(storyId: String): Story? = dao.getStoryById(storyId)
 
     suspend fun createStory(
-        title: String,
-        genres: String,
-        overview: String,
-        coverImageUrl: String?,
-        isPublished: Boolean = false
+        title: String, genres: String, overview: String, coverImageUrl: String?,
+        isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ) {
-        val story = Story(
-            id = UUID.randomUUID().toString(),
-            authorId = currentUserId,
-            authorName = currentUsername,
-            title = title,
-            genres = genres,
-            overview = overview,
-            coverImageUrl = coverImageUrl,
-            isPublished = isPublished
+        dao.insertStory(
+            Story(
+                id = UUID.randomUUID().toString(),
+                authorId = currentUserId, authorName = currentUsername,
+                title = title, genres = genres, overview = overview,
+                coverImageUrl = coverImageUrl,
+                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
+            )
         )
-        dao.insertStory(story)
     }
 
-    // Creates a story and returns its generated ID so the caller can navigate directly to it
     suspend fun createStoryAndReturnId(
-        title: String,
-        genres: String,
-        overview: String,
-        coverImageUrl: String?,
-        isPublished: Boolean = false
+        title: String, genres: String, overview: String, coverImageUrl: String?,
+        isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ): String {
         val id = UUID.randomUUID().toString()
-        val story = Story(
-            id = id,
-            authorId = currentUserId,
-            authorName = currentUsername,
-            title = title,
-            genres = genres,
-            overview = overview,
-            coverImageUrl = coverImageUrl,
-            isPublished = isPublished
+        dao.insertStory(
+            Story(
+                id = id,
+                authorId = currentUserId, authorName = currentUsername,
+                title = title, genres = genres, overview = overview,
+                coverImageUrl = coverImageUrl,
+                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
+            )
         )
-        dao.insertStory(story)
         return id
     }
 
-    suspend fun publishStory(storyId: String) {
-        dao.publishStory(storyId)
-    }
+    suspend fun publishStory(storyId: String) = dao.publishStory(storyId)
 
     fun getStoriesByGenre(genre: String): Flow<List<Story>> = dao.getStoriesByGenre(genre)
 
     suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int) {
-        val part = StoryPart(
-            id = UUID.randomUUID().toString(),
-            storyId = storyId,
-            title = title,
-            content = content,
-            order = order
+        dao.insertStoryPart(
+            StoryPart(
+                id = UUID.randomUUID().toString(),
+                storyId = storyId, title = title, content = content, order = order,
+                publishedAt = System.currentTimeMillis()
+            )
         )
-        dao.insertStoryPart(part)
     }
 
     fun getPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPartsForStory(storyId)
@@ -136,14 +134,13 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
     suspend fun withdraw(amount: Double, method: String, accountInfo: String): Boolean {
         if (amount < 0.10) return false
         dao.deductBalance(currentUserId, amount)
-        val transaction = Transaction(
-            id = UUID.randomUUID().toString(),
-            userId = currentUserId,
-            amount = amount,
-            method = method,
-            accountInfo = accountInfo
+        dao.insertTransaction(
+            Transaction(
+                id = UUID.randomUUID().toString(),
+                userId = currentUserId, amount = amount,
+                method = method, accountInfo = accountInfo
+            )
         )
-        dao.insertTransaction(transaction)
         return true
     }
 
@@ -155,24 +152,18 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
 
     fun searchAuthors(query: String): Flow<List<User>> = dao.searchAuthors(query)
 
-    suspend fun updateUserProfile(
-        bio: String,
-        profileImageUrl: String?,
-        coverImageUrl: String?
-    ) {
+    suspend fun updateUserProfile(bio: String, profileImageUrl: String?, coverImageUrl: String?) {
         dao.updateUserProfile(currentUserId, bio, profileImageUrl, coverImageUrl)
     }
 
     suspend fun sendMessage(authorId: String, message: String, parentId: String? = null) {
-        val conversation = Conversation(
-            id = UUID.randomUUID().toString(),
-            authorId = authorId,
-            senderId = currentUserId,
-            senderName = currentUsername,
-            message = message,
-            parentId = parentId
+        dao.insertConversation(
+            Conversation(
+                id = UUID.randomUUID().toString(),
+                authorId = authorId, senderId = currentUserId,
+                senderName = currentUsername, message = message, parentId = parentId
+            )
         )
-        dao.insertConversation(conversation)
     }
 
     fun getConversations(authorId: String): Flow<List<Conversation>> =
@@ -192,5 +183,23 @@ class MoneyPadRepository(private val dao: MoneyPadDao) {
         dao.updateFollowers(followedId, -1)
     }
 
-    fun isFollowing(followedId: String): Flow<Boolean> = dao.isFollowing(currentUserId, followedId)
+    fun isFollowing(followedId: String): Flow<Boolean> =
+        dao.isFollowing(currentUserId, followedId)
+
+    // ── Reviews ──────────────────────────────────────────────────────────────
+    suspend fun addReview(storyId: String, rating: Int, comment: String) {
+        dao.insertReview(
+            Review(
+                id = UUID.randomUUID().toString(),
+                storyId = storyId, userId = currentUserId,
+                username = currentUsername, rating = rating, comment = comment
+            )
+        )
+    }
+
+    fun getReviewsForStory(storyId: String): Flow<List<Review>> =
+        dao.getReviewsForStory(storyId)
+
+    fun hasUserReviewed(storyId: String): Flow<Boolean> =
+        dao.hasUserReviewed(storyId, currentUserId)
 }

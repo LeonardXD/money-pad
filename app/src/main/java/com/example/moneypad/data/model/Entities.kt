@@ -27,7 +27,7 @@ data class Conversation(
     val senderName: String,
     val message: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val parentId: String? = null // For replies
+    val parentId: String? = null
 )
 
 @Entity(tableName = "follows", primaryKeys = ["followerId", "followedId"])
@@ -43,10 +43,12 @@ data class Story(
     val authorName: String,
     val title: String,
     val overview: String,
-    val genres: String = "", // Comma-separated genres
+    val genres: String = "",
     val coverImageUrl: String? = null,
     val readCount: Int = 0,
     val isPublished: Boolean = false,
+    val isCompleted: Boolean = false,
+    val isMature: Boolean = false,
     val likes: Int = 0,
     val commentsCount: Int = 0,
     val uniqueViews: Int = 0,
@@ -59,7 +61,8 @@ data class StoryPart(
     val storyId: String,
     val title: String,
     val content: String,
-    val order: Int
+    val order: Int,
+    val publishedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "transactions")
@@ -67,8 +70,19 @@ data class Transaction(
     @PrimaryKey val id: String,
     val userId: String,
     val amount: Double,
-    val method: String, // "PayPal" or "GCash"
-    val accountInfo: String, // Email or Number
+    val method: String,
+    val accountInfo: String,
     val timestamp: Long = System.currentTimeMillis(),
     val status: String = "Pending"
+)
+
+@Entity(tableName = "reviews")
+data class Review(
+    @PrimaryKey val id: String,
+    val storyId: String,
+    val userId: String,
+    val username: String,
+    val rating: Int,
+    val comment: String,
+    val timestamp: Long = System.currentTimeMillis()
 )

@@ -2,20 +2,28 @@ package com.example.moneypad.ui.auth
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moneypad.ui.components.MoneyPadTextField
 import androidx.compose.runtime.LaunchedEffect
+
 @Composable
 fun SignupScreen(
     onNavigateToLogin: () -> Unit,
@@ -23,6 +31,8 @@ fun SignupScreen(
     viewModel: SignupViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
@@ -82,7 +92,14 @@ fun SignupScreen(
             value = uiState.password,
             onValueChange = { viewModel.onPasswordChange(it) },
             label = "Create Password",
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                val image = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                val description = if (passwordVisible) "Hide password" else "Show password"
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = image, contentDescription = description)
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -91,7 +108,14 @@ fun SignupScreen(
             value = uiState.confirmPassword,
             onValueChange = { viewModel.onConfirmPasswordChange(it) },
             label = "Confirm Password",
-            visualTransformation = PasswordVisualTransformation()
+            visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                val image = if (confirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                val description = if (confirmPasswordVisible) "Hide password" else "Show password"
+                IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                    Icon(imageVector = image, contentDescription = description)
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(24.dp))

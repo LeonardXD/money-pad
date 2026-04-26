@@ -7,7 +7,19 @@ import androidx.room.RoomDatabase
 import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
 
-@Database(entities = [User::class, Story::class, StoryPart::class, Transaction::class, Conversation::class, Follow::class], version = 7, exportSchema = false)
+@Database(
+    entities = [
+        User::class,
+        Story::class,
+        StoryPart::class,
+        Transaction::class,
+        Conversation::class,
+        Follow::class,
+        Review::class
+    ],
+    version = 8,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun moneyPadDao(): MoneyPadDao
 
@@ -22,8 +34,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "moneypad_database"
                 )
-                .fallbackToDestructiveMigration()
-                .build()
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

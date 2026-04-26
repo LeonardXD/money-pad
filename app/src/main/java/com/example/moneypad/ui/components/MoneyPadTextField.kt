@@ -21,7 +21,8 @@ fun MoneyPadTextField(
     isError: Boolean = false,
     errorMessage: String? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     OutlinedTextField(
         value = value,
@@ -31,6 +32,7 @@ fun MoneyPadTextField(
         isError = isError,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
+        trailingIcon = trailingIcon,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,

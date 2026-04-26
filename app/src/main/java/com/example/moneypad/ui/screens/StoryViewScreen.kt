@@ -31,8 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-
-data class MockReview(val username: String, val rating: Int, val comment: String)
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +46,7 @@ fun StoryViewScreen(
 ) {
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
+    val reviews by viewModel.reviews.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Summary", "Parts")
@@ -53,14 +55,8 @@ fun StoryViewScreen(
     var showReviewDialog by remember { mutableStateOf(false) }
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
-    var mockReviews by remember {
-        mutableStateOf(
-            listOf(
-                MockReview("bookworm99", 5, "Absolutely loved this! The character development is amazing."),
-                MockReview("reader_x", 4, "Great plot, but the pacing was a bit slow in the middle.")
-            )
-        )
-    }
+    
+    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     LaunchedEffect(storyId) {
         viewModel.getStoryById(storyId)
@@ -101,7 +97,6 @@ fun StoryViewScreen(
                 )
             )
         },
-        // ── KEY FIX: no Surface wrapper, no elevation, same background color ──
         bottomBar = {
             story?.let {
                 Box(
@@ -109,7 +104,7 @@ fun StoryViewScreen(
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.background)
                         .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -365,8 +360,10 @@ fun StoryViewScreen(
                                     it.content.split(Regex("\\s+"))
                                         .count { w -> w.isNotBlank() }
                                 }
+                                val matureText = if (currentStory.isMature) "Mature" else "Everyone"
+                                val completeText = if (currentStory.isCompleted) "Complete" else "Ongoing"
                                 Text(
-                                    text = "Mature • Complete • $wordCount words",
+                                    text = "$matureText • $completeText • $wordCount words",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -403,14 +400,14 @@ fun StoryViewScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            if (mockReviews.isEmpty()) {
+                            if (reviews.isEmpty()) {
                                 Text(
                                     "No reviews yet. Be the first to review!",
                                     color = Color.Gray,
                                     fontSize = 14.sp
                                 )
                             } else {
-                                mockReviews.forEach { review ->
+                                reviews.forEach { review ->
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -462,20 +459,23 @@ fun StoryViewScreen(
                         }
                     } else {
                         items(parts) { part ->
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onNavigateToReadPart(storyId, part.id) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     text = part.title,
                                     fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
                                 Text(
-                                    text = "Published recently",
+                                    text = dateFormat.format(Date(part.publishedAt)),
                                     fontSize = 12.sp,
                                     color = Color.Gray
                                 )
@@ -527,11 +527,7 @@ fun StoryViewScreen(
             confirmButton = {
                 Button(onClick = {
                     if (reviewComment.isNotBlank()) {
-                        mockReviews = mockReviews + MockReview(
-                            "currentUser",
-                            reviewRating,
-                            reviewComment
-                        )
+                        viewModel.addReview(storyId, reviewRating, reviewComment)
                         reviewComment = ""
                         reviewRating = 5
                         showReviewDialog = false

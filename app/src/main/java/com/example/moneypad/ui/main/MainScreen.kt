@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,38 +22,41 @@ import com.example.moneypad.ui.theme.ThemeViewModel
 fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogout: () -> Unit) {
     val navController = rememberNavController()
     val storyViewModel: StoryViewModel = viewModel(factory = factory)
+    var showBottomBar by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.primary
-            ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentDestination = navBackStackEntry?.destination
 
-                bottomNavItems.forEach { screen ->
-                    NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = null) },
-                        label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+                    bottomNavItems.forEach { screen ->
+                        NavigationBarItem(
+                            icon = { Icon(screen.icon, contentDescription = null) },
+                            label = { Text(screen.title) },
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                unselectedIconColor = Color.Gray,
+                                unselectedTextColor = Color.Gray
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -63,15 +67,17 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.Explore.route) {
-                ExploreNavigation(storyViewModel, factory)
+                ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it })
             }
             composable(BottomNavItem.Write.route) {
-                WriteNavigation(storyViewModel)
+                WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
             }
             composable(BottomNavItem.Earnings.route) {
+                androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
                 EarningsScreen(viewModel(factory = factory))
             }
             composable(BottomNavItem.Profile.route) {
+                androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
                 ProfileScreen(
                     viewModel = viewModel(factory = factory),
                     themeViewModel = themeViewModel,
@@ -83,11 +89,12 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
 }
 
 @Composable
-fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory) {
+fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory, onShowBottomBar: (Boolean) -> Unit) {
     val exploreNavController = rememberNavController()
 
     NavHost(navController = exploreNavController, startDestination = "explore_list") {
         composable("explore_list") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
             ExploreScreen(
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
                 onNavigateToAuthorProfile = { id -> exploreNavController.navigate("author_profile/$id") },
@@ -95,6 +102,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
             )
         }
         composable("story_view/{storyId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
             StoryViewScreen(
                 storyId = storyId,
@@ -109,6 +117,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
             )
         }
         composable("read/{storyId}/{partId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
             val partId = backStackEntry.arguments?.getString("partId") ?: ""
             ReadPartScreen(
@@ -119,6 +128,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
             )
         }
         composable("author_profile/{authorId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
             PublicProfileScreen(
                 authorId = authorId,
@@ -132,11 +142,12 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory)
 }
 
 @Composable
-fun WriteNavigation(storyViewModel: StoryViewModel) {
+fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -> Unit) {
     val writeNavController = rememberNavController()
 
     NavHost(navController = writeNavController, startDestination = "list") {
         composable("list") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
             WriteScreen(
                 onNavigateToCreateStory = { writeNavController.navigate("create") },
                 onNavigateToStoryDetail = { id -> writeNavController.navigate("detail/$id") },
@@ -144,6 +155,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel) {
             )
         }
         composable("create") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             CreateStoryScreen(
                 onNavigateBack = { writeNavController.popBackStack() },
                 // After creating a story, jump straight to the write-part screen
@@ -157,6 +169,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel) {
             )
         }
         composable("detail/{storyId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
             StoryDetailScreen(
                 storyId = storyId,
@@ -166,6 +179,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel) {
             )
         }
         composable("write_part/{storyId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
             WritePartScreen(
                 storyId = storyId,

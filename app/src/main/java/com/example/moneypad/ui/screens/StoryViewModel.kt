@@ -26,6 +26,9 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     private val _currentParts = MutableStateFlow<List<StoryPart>>(emptyList())
     val currentParts = _currentParts.asStateFlow()
 
+    private val _reviews = MutableStateFlow<List<com.example.moneypad.data.model.Review>>(emptyList())
+    val reviews = _reviews.asStateFlow()
+
     // Holds the ID of the most recently created story so navigation can pick it up
     private val _lastCreatedStoryId = MutableStateFlow<String?>(null)
     val lastCreatedStoryId: StateFlow<String?> = _lastCreatedStoryId.asStateFlow()
@@ -37,9 +40,22 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun getStoryById(id: String) {
         viewModelScope.launch {
             _currentStory.value = repository.getStoryById(id)
+        }
+        viewModelScope.launch {
             repository.getPartsForStory(id).collect {
                 _currentParts.value = it
             }
+        }
+        viewModelScope.launch {
+            repository.getReviewsForStory(id).collect {
+                _reviews.value = it
+            }
+        }
+    }
+
+    fun addReview(storyId: String, rating: Int, comment: String) {
+        viewModelScope.launch {
+            repository.addReview(storyId, rating, comment)
         }
     }
 

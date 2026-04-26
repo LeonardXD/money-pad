@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.moneypad.data.model.Review
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.StoryPart
 import com.example.moneypad.data.model.Transaction
@@ -107,4 +108,14 @@ interface MoneyPadDao {
 
     @Query("SELECT * FROM transactions WHERE userId = :userId ORDER BY timestamp DESC")
     fun getTransactionsForUser(userId: String): Flow<List<Transaction>>
+
+    // Reviews
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReview(review: Review)
+
+    @Query("SELECT * FROM reviews WHERE storyId = :storyId ORDER BY timestamp DESC")
+    fun getReviewsForStory(storyId: String): Flow<List<Review>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM reviews WHERE storyId = :storyId AND userId = :userId)")
+    fun hasUserReviewed(storyId: String, userId: String): Flow<Boolean>
 }
