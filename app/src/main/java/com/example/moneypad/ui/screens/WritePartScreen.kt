@@ -30,27 +30,40 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun WritePartScreen(
     storyId: String,
+    partId: String? = null,
     onNavigateBack: () -> Unit,
     onPartSaved: () -> Unit,
-    viewModel: StoryViewModel
+    viewModel: StoryViewModel,
+    navController: androidx.navigation.NavController? = null
 ) {
-    var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val parts by viewModel.currentParts.collectAsState()
+    val partToEdit = parts.find { it.id == partId }
+
+    var title by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
+    var content by remember(partToEdit) { mutableStateOf(partToEdit?.content ?: "") }
+    var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
 
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
 
+    val hasChanges = remember(title, content, partToEdit) {
+        val originalTitle = partToEdit?.title ?: ""
+        val originalContent = partToEdit?.content ?: ""
+        title != originalTitle || content != originalContent
+    }
+
     // Save as draft and go back
     fun saveDraftAndExit() {
-        viewModel.savePartAsDraft(storyId, title, content)
+        viewModel.savePartAsDraft(storyId, title, content, partId)
         onNavigateBack()
     }
 
     // Intercept the system back gesture/button
     BackHandler {
-        if (title.isNotBlank() || content.isNotBlank()) {
+        if (hasChanges && (title.isNotBlank() || content.isNotBlank())) {
             showSaveDraftDialog = true
         } else {
             onNavigateBack()
@@ -88,7 +101,7 @@ fun WritePartScreen(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (title.isNotBlank() || content.isNotBlank()) {
+                        if (hasChanges && (title.isNotBlank() || content.isNotBlank())) {
                             showSaveDraftDialog = true
                         } else {
                             onNavigateBack()
@@ -101,8 +114,15 @@ fun WritePartScreen(
                     Button(
                         onClick = {
                             if (title.isNotBlank() && content.isNotBlank()) {
-                                viewModel.addPartToStory(storyId, title, content)
-                                onPartSaved()
+                                if (isPublished) {
+                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content, false)
+                                    isPublished = false
+                                    android.widget.Toast.makeText(context, "Part unpublished", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.addPartToStory(storyId, title, content, partId, true)
+                                    isPublished = true
+                                    android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             }
                         },
                         shape = RoundedCornerShape(20.dp),
@@ -110,7 +130,7 @@ fun WritePartScreen(
                             .padding(end = 8.dp)
                             .height(36.dp)
                     ) {
-                        Text("Publish", fontSize = 14.sp)
+                        Text(if (isPublished) "Unpublish" else "Publish", fontSize = 14.sp)
                     }
 
                     Box {
@@ -129,12 +149,14 @@ fun WritePartScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Unpublish") },
-                                onClick = { expanded = false }
-                            )
-                            DropdownMenuItem(
                                 text = { Text("View as Reader's POV") },
-                                onClick = { expanded = false }
+                                onClick = { 
+                                    expanded = false 
+                                    if (partId != null) {
+                                        // Use the root navController if available to find global routes like "read"
+                                        navController?.navigate("read/$storyId/$partId")
+                                    }
+                                }
                             )
                             DropdownMenuItem(
                                 text = {
@@ -143,7 +165,13 @@ fun WritePartScreen(
                                         color = MaterialTheme.colorScheme.error
                                     )
                                 },
-                                onClick = { expanded = false }
+                                onClick = {
+                                    expanded = false
+                                    if (partId != null) {
+                                        viewModel.deletePart(partId)
+                                        onNavigateBack()
+                                    }
+                                }
                             )
                         }
                     }

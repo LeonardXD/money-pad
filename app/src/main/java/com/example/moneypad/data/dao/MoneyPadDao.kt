@@ -126,24 +126,62 @@ interface MoneyPadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStory(story: Story)
 
+    @Query("DELETE FROM stories WHERE id = :storyId")
+    suspend fun deleteStory(storyId: String)
+
+    @Query("DELETE FROM story_parts WHERE storyId = :storyId")
+    suspend fun deleteStoryParts(storyId: String)
+
     @Query("UPDATE stories SET readCount = readCount + 1 WHERE id = :storyId")
     suspend fun incrementReadCount(storyId: String)
 
-    @Query("UPDATE stories SET isPublished = 1 WHERE id = :storyId")
-    suspend fun publishStory(storyId: String)
+    @Query("UPDATE stories SET isPublished = 1, lastUpdatedAt = :timestamp WHERE id = :storyId")
+    suspend fun publishStory(storyId: String, timestamp: Long = System.currentTimeMillis())
 
-    @Query("SELECT * FROM stories WHERE (title LIKE '%' || :query || '%' OR genres LIKE '%' || :query || '%') AND (genres LIKE '%' || :genre || '%' OR :genre = 'All') AND isPublished = 1")
-    fun searchStories(query: String, genre: String): Flow<List<Story>>
+    @Query("UPDATE stories SET isPublished = 0, lastUpdatedAt = :timestamp WHERE id = :storyId")
+    suspend fun unpublishStory(storyId: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("SELECT * FROM stories WHERE (title LIKE '%' || :query || '%' OR genres LIKE '%' || :query || '%') AND (genres LIKE '%' || :genre || '%' OR :genre = 'All') AND isPublished = 1 AND authorId != :excludeAuthorId")
+    fun searchStoriesExcludingAuthor(query: String, genre: String, excludeAuthorId: String): Flow<List<Story>>
+
+    @Query("SELECT * FROM users WHERE username LIKE '%' || :query || '%' AND id != :excludeUserId")
+    fun searchAuthorsExcludingSelf(query: String, excludeUserId: String): Flow<List<User>>
 
     @Query("SELECT * FROM stories WHERE genres LIKE '%' || :genre || '%' AND isPublished = 1")
     fun getStoriesByGenre(genre: String): Flow<List<Story>>
+
+    @Query("SELECT * FROM stories WHERE isPublished = 1 ORDER BY lastUpdatedAt DESC")
+    fun getUpdatedStories(): Flow<List<Story>>
 
     // ── Story Parts ───────────────────────────────────────────────────────────
     @Query("SELECT * FROM story_parts WHERE storyId = :storyId ORDER BY `order` ASC")
     fun getPartsForStory(storyId: String): Flow<List<StoryPart>>
 
+    @Query("SELECT * FROM story_parts WHERE storyId = :storyId AND isPublished = 1 ORDER BY `order` ASC")
+    fun getPublishedPartsForStory(storyId: String): Flow<List<StoryPart>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStoryPart(part: StoryPart)
+
+    @Query("UPDATE stories SET lastUpdatedAt = :timestamp WHERE id = :storyId")
+    suspend fun updateStoryLastUpdated(storyId: String, timestamp: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM story_parts WHERE id = :partId")
+    suspend fun deleteStoryPart(partId: String)
+
+    // ── User Read Parts ───────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUserReadPart(readPart: com.example.moneypad.data.model.UserReadPart)
+
+    @Query("SELECT * FROM user_read_parts WHERE userId = :userId")
+    fun getUserReadParts(userId: String): Flow<List<com.example.moneypad.data.model.UserReadPart>>
+
+    @Query("SELECT storyId FROM user_read_parts WHERE userId = :userId GROUP BY storyId ORDER BY MAX(readAt) DESC")
+    fun getRecentlyReadStoryIds(userId: String): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM user_read_parts WHERE userId = :userId AND storyId = :storyId")
+    fun getReadPartsCountForStory(userId: String, storyId: String): Flow<Int>
+
 
     // ── Transactions ──────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)

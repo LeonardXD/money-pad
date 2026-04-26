@@ -61,7 +61,16 @@ data class Story(
     val likes: Int = 0,
     val commentsCount: Int = 0,
     val uniqueViews: Int = 0,
-    val repeatedViews: Int = 0
+    val repeatedViews: Int = 0,
+    val lastUpdatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "user_read_parts", primaryKeys = ["userId", "partId"])
+data class UserReadPart(
+    val userId: String,
+    val partId: String,
+    val storyId: String,
+    val readAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "story_parts")
@@ -71,7 +80,8 @@ data class StoryPart(
     val title: String,
     val content: String,
     val order: Int,
-    val publishedAt: Long = System.currentTimeMillis()
+    val publishedAt: Long = System.currentTimeMillis(),
+    val isPublished: Boolean = false
 )
 
 @Entity(tableName = "transactions")

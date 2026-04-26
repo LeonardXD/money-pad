@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -120,7 +121,7 @@ fun StatItem(label: String, value: String) {
 }
 
 @Composable
-fun PublishedStoryCard(story: Story, onClick: () -> Unit) {
+fun PublishedStoryCard(story: Story, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -168,11 +169,17 @@ fun PublishedStoryCard(story: Story, onClick: () -> Unit) {
                         }
                     }
                 }
-                IconButton(
-                    onClick = { /* TODO: Share functionality */ },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary)
+                Column(modifier = Modifier.align(Alignment.TopEnd)) {
+                    IconButton(
+                        onClick = { /* TODO: Share functionality */ }
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(
+                        onClick = onDelete
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
             HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))

@@ -62,8 +62,11 @@ fun ExploreScreen(
     )
 
     val stories by viewModel.search(searchQuery, selectedGenre).collectAsState(initial = emptyList())
-    
     val authors by viewModel.searchAuthors(searchQuery).collectAsState(initial = emptyList())
+    
+    val continueReading by viewModel.continueReadingStories.collectAsState()
+    val recommendedStories by viewModel.recommendedStories.collectAsState()
+    val updatedStories by viewModel.updatedStories.collectAsState()
 
     Scaffold(
         topBar = {
@@ -143,50 +146,56 @@ fun ExploreScreen(
                     }
                 }
 
-                if (searchQuery.isBlank() && stories.isNotEmpty()) {
-                    item {
-                        Text("Continue Reading", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(stories.take(3)) { story ->
-                                CarouselStoryCard(
-                                    story = story, 
-                                    modifier = Modifier.width(140.dp),
-                                    progress = 0.45f,
-                                    onClick = { onNavigateToStoryDetail(story.id) }
-                                )
+                if (searchQuery.isBlank()) {
+                    if (continueReading.isNotEmpty()) {
+                        item {
+                            Text("Continue Reading", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(continueReading) { (story, progress) ->
+                                    CarouselStoryCard(
+                                        story = story, 
+                                        modifier = Modifier.width(140.dp),
+                                        progress = progress,
+                                        onClick = { onNavigateToStoryDetail(story.id) }
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
                     
-                    item {
-                        Text("Stories from genres you like", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(stories.shuffled().take(5)) { story ->
-                                CarouselStoryCard(
-                                    story = story, 
-                                    modifier = Modifier.width(140.dp),
-                                    onClick = { onNavigateToStoryDetail(story.id) }
-                                )
+                    if (recommendedStories.isNotEmpty()) {
+                        item {
+                            Text("Stories from genres you like", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(recommendedStories.take(10)) { story ->
+                                    CarouselStoryCard(
+                                        story = story, 
+                                        modifier = Modifier.width(140.dp),
+                                        onClick = { onNavigateToStoryDetail(story.id) }
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
-                if (stories.isNotEmpty()) {
+                val currentStoriesList = if (searchQuery.isNotBlank()) stories else updatedStories
+
+                if (currentStoriesList.isNotEmpty()) {
                     item {
                         Text(if (searchQuery.isBlank()) "Updated Stories" else "Stories", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
-                    val chunkedStories = stories.chunked(2)
+                    val chunkedStories = currentStoriesList.chunked(2)
                     items(chunkedStories) { rowStories ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -207,7 +216,7 @@ fun ExploreScreen(
                     }
                 }
 
-                if (stories.isEmpty() && authors.isEmpty()) {
+                if (currentStoriesList.isEmpty() && authors.isEmpty()) {
                     item {
                         Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No stories available yet", color = Color.Gray)

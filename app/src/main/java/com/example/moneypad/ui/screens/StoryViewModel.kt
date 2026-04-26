@@ -5,11 +5,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.StoryPart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
+
+    val currentUserId: String get() = repository.currentUserId
 
     val stories: StateFlow<List<Story>> = repository.getAllStories()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -19,6 +23,41 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     val myDraftStories: StateFlow<List<Story>> = repository.getDraftStoriesByAuthor(repository.currentUserId)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val updatedStories: StateFlow<List<Story>> = repository.getUpdatedStories()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val continueReadingStories: StateFlow<List<Pair<Story, Float>>> = repository.getRecentlyReadStoryIds()
+        .flatMapLatest { ids ->
+            if (ids.isEmpty()) flowOf(emptyList<Pair<Story, Float>>())
+            else {
+                val flows = ids.map { id ->
+                    val storyFlow = flow { emit(repository.getStoryById(id)) }
+                    val progressFlow = repository.getReadPartsCount(id)
+                    val partsFlow = repository.getPartsForStory(id)
+                    
+                    combine(storyFlow, progressFlow, partsFlow) { story, readCount, parts ->
+                        if (story != null && (story.isPublished || story.authorId == repository.currentUserId) && parts.isNotEmpty()) {
+                            val publishedParts = if (story.authorId == repository.currentUserId) parts else parts.filter { it.isPublished }
+                            val total = publishedParts.size.coerceAtLeast(1)
+                            story to (readCount.toFloat() / total).coerceIn(0f, 1f)
+                        } else null
+                    }
+                }
+                combine(flows) { it.filterNotNull() }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val recommendedStories: StateFlow<List<Story>> = repository.getCurrentUser()
+        .flatMapLatest { user ->
+            val genres = user?.preferredGenres?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+            if (genres.isEmpty()) repository.getAllStories()
+            else {
+                combine(genres.map { repository.getStoriesByGenre(it) }) { lists ->
+                    lists.flatMap { it }.distinctBy { it.id }.filter { it.authorId != repository.currentUserId && it.isPublished }
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _currentStory = MutableStateFlow<Story?>(null)
     val currentStory = _currentStory.asStateFlow()
@@ -39,10 +78,17 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     fun getStoryById(id: String) {
         viewModelScope.launch {
-            _currentStory.value = repository.getStoryById(id)
-        }
-        viewModelScope.launch {
-            repository.getPartsForStory(id).collect {
+            val story = repository.getStoryById(id)
+            _currentStory.value = story
+
+            // Fetch parts based on author vs reader
+            val partsFlow = if (story?.authorId == repository.currentUserId) {
+                repository.getPartsForStory(id)
+            } else {
+                repository.getPublishedPartsForStory(id)
+            }
+            
+            partsFlow.collect {
                 _currentParts.value = it
             }
         }
@@ -75,20 +121,28 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun publishStory(storyId: String) {
         viewModelScope.launch {
             repository.publishStory(storyId)
+            getStoryById(storyId)
+        }
+    }
+
+    fun unpublishStory(storyId: String) {
+        viewModelScope.launch {
+            repository.unpublishStory(storyId)
+            getStoryById(storyId)
         }
     }
 
     fun getStoriesByGenre(genre: String): Flow<List<Story>> = repository.getStoriesByGenre(genre)
 
-    fun addPartToStory(storyId: String, partTitle: String, content: String) {
+    fun addPartToStory(storyId: String, partTitle: String, content: String, partId: String? = null, isPublished: Boolean = false) {
         viewModelScope.launch {
             val currentPartsCount = _currentParts.value.size
-            repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1)
+            repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1, partId, isPublished)
         }
     }
 
     // Saves current part as draft (does the same as addPartToStory — stored but not published)
-    fun savePartAsDraft(storyId: String, partTitle: String, content: String) {
+    fun savePartAsDraft(storyId: String, partTitle: String, content: String, partId: String? = null) {
         if (partTitle.isBlank() && content.isBlank()) return
         viewModelScope.launch {
             val currentPartsCount = _currentParts.value.size
@@ -96,14 +150,46 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
                 storyId,
                 partTitle.ifBlank { "Untitled Chapter" },
                 content,
-                currentPartsCount + 1
+                currentPartsCount + 1,
+                partId,
+                isPublished = false
             )
+        }
+    }
+
+    fun updatePartStatus(storyId: String, partId: String, title: String, content: String, isPublished: Boolean) {
+        viewModelScope.launch {
+            val part = _currentParts.value.find { it.id == partId }
+            val order = part?.order ?: (_currentParts.value.size + 1)
+            repository.updateStoryPart(partId, storyId, title, content, order, isPublished)
         }
     }
 
     fun recordRead(storyId: String) {
         viewModelScope.launch {
             repository.recordRead(storyId)
+        }
+    }
+
+    fun recordPartRead(storyId: String, partId: String) {
+        viewModelScope.launch {
+            repository.recordPartRead(storyId, partId)
+        }
+    }
+
+    fun deletePart(partId: String) {
+        viewModelScope.launch {
+            repository.deleteStoryPart(partId)
+            // Reload parts for the current story
+            _currentStory.value?.id?.let {
+                getStoryById(it)
+            }
+        }
+    }
+
+    fun deleteStory(storyId: String) {
+        viewModelScope.launch {
+            repository.deleteStory(storyId)
         }
     }
 

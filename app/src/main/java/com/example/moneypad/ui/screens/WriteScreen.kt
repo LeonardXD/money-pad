@@ -86,13 +86,17 @@ fun WriteScreen(
                 ) {
                     items(currentStories) { story ->
                         if (selectedTab == 0) {
-                            PublishedStoryCard(story = story, onClick = { onNavigateToStoryDetail(story.id) })
+                            PublishedStoryCard(
+                                story = story,
+                                onClick = { onNavigateToStoryDetail(story.id) },
+                                onDelete = { viewModel.deleteStory(story.id) }
+                            )
                         } else {
                             DraftStoryCard(
                                 story = story,
                                 onClick = { onNavigateToStoryDetail(story.id) },
                                 onEdit = { onNavigateToStoryDetail(story.id) },
-                                onDelete = { /* TODO: Implement delete in viewmodel */ }
+                                onDelete = { viewModel.deleteStory(story.id) }
                             )
                         }
                     }

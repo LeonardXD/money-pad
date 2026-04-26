@@ -99,61 +99,63 @@ fun StoryViewScreen(
         },
         bottomBar = {
             story?.let {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background)
-                        .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (it.isPublished || it.authorId == viewModel.currentUserId) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.background)
+                            .navigationBarsPadding()
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                if (parts.isNotEmpty()) {
-                                    onNavigateToReadPart(storyId, parts.first().id)
-                                }
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            shape = RoundedCornerShape(25.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "Start reading",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { /* TODO: Open comments */ },
-                            modifier = Modifier
-                                .size(50.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                    CircleShape
+                            Button(
+                                onClick = {
+                                    if (parts.isNotEmpty()) {
+                                        onNavigateToReadPart(storyId, parts.first().id)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(25.dp)
+                            ) {
+                                Text(
+                                    "Start reading",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
-                        ) {
-                            Icon(
-                                Icons.Default.ChatBubbleOutline,
-                                contentDescription = "Comment"
-                            )
-                        }
+                            }
 
-                        IconButton(
-                            onClick = { /* TODO: Download */ },
-                            modifier = Modifier
-                                .size(50.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                    CircleShape
+                            IconButton(
+                                onClick = { /* TODO: Open comments */ },
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    Icons.Default.ChatBubbleOutline,
+                                    contentDescription = "Comment"
                                 )
-                        ) {
-                            Icon(Icons.Default.Download, contentDescription = "Download")
+                            }
+
+                            IconButton(
+                                onClick = { /* TODO: Download */ },
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = "Download")
+                            }
                         }
                     }
                 }
@@ -162,327 +164,338 @@ fun StoryViewScreen(
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
         story?.let { currentStory ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                // Story Header
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(180.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        ) {
-                            if (currentStory.coverImageUrl != null) {
-                                AsyncImage(
-                                    model = currentStory.coverImageUrl,
-                                    contentDescription = "Cover Image",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Default.Book,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .size(48.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = currentStory.title,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Season 1 of 4",
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = currentStory.authorName,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Visibility,
-                                        contentDescription = "Views",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = Color.Gray
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "${currentStory.readCount}",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.StarBorder,
-                                        contentDescription = "Likes",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = Color.Gray
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "${currentStory.likes}",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.ChatBubbleOutline,
-                                        contentDescription = "Comments",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = Color.Gray
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "${currentStory.commentsCount}",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray
-                                    )
-                                }
-                            }
-                        }
+            if (!currentStory.isPublished && currentStory.authorId != viewModel.currentUserId) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Book, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("This story is no longer available.", color = Color.Gray)
+                        TextButton(onClick = onNavigateBack) { Text("Go Back") }
                     }
                 }
-
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = Color.DarkGray.copy(alpha = 0.5f)
-                        )
-                        Text(
-                            text = "Advertisement",
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = Color.DarkGray.copy(alpha = 0.5f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                item {
-                    TabRow(
-                        selectedTabIndex = selectedTab,
-                        containerColor = Color.Transparent,
-                        divider = {}
-                    ) {
-                        tabs.forEachIndexed { index, title ->
-                            Tab(
-                                selected = selectedTab == index,
-                                onClick = { selectedTab = index },
-                                text = {
-                                    Text(
-                                        title,
-                                        fontWeight = if (selectedTab == index) FontWeight.Bold
-                                        else FontWeight.Medium,
-                                        fontSize = 16.sp
-                                    )
-                                }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                if (selectedTab == 0) {
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    // Story Header
                     item {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Outlined.Book,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                val wordCount = parts.sumOf {
-                                    it.content.split(Regex("\\s+"))
-                                        .count { w -> w.isNotBlank() }
-                                }
-                                val matureText = if (currentStory.isMature) "Mature" else "Everyone"
-                                val completeText = if (currentStory.isCompleted) "Complete" else "Ongoing"
-                                Text(
-                                    text = "$matureText • $completeText • $wordCount words",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            var isExpanded by remember { mutableStateOf(false) }
-                            Text(
-                                text = currentStory.overview,
-                                fontSize = 15.sp,
-                                lineHeight = 24.sp,
-                                maxLines = if (isExpanded) Int.MAX_VALUE else 4,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (!isExpanded && currentStory.overview.length > 150) {
-                                Text(
-                                    text = "Read more",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .padding(top = 4.dp)
-                                        .clickable { isExpanded = true }
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(32.dp))
-
-                            Text(
-                                text = "Reviews",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            if (reviews.isEmpty()) {
-                                Text(
-                                    "No reviews yet. Be the first to review!",
-                                    color = Color.Gray,
-                                    fontSize = 14.sp
-                                )
-                            } else {
-                                reviews.forEach { review ->
-                                    Column(
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(120.dp)
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            ) {
+                                if (currentStory.coverImageUrl != null) {
+                                    AsyncImage(
+                                        model = currentStory.coverImageUrl,
+                                        contentDescription = "Cover Image",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Book,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(bottom = 16.dp)
+                                            .align(Alignment.Center)
+                                            .size(48.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = currentStory.title,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Season 1 of 4",
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                            ),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = review.username,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Row {
-                                                for (i in 1..5) {
-                                                    Icon(
-                                                        imageVector = if (i <= review.rating)
-                                                            Icons.Default.Star
-                                                        else Icons.Default.StarBorder,
-                                                        contentDescription = null,
-                                                        tint = Color(0xFFFFD700),
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = currentStory.authorName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.Visibility,
+                                            contentDescription = "Views",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = Color.Gray
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
                                         Text(
-                                            text = review.comment,
+                                            "${currentStory.readCount}",
                                             fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.StarBorder,
+                                            contentDescription = "Likes",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = Color.Gray
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "${currentStory.likes}",
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.ChatBubbleOutline,
+                                            contentDescription = "Comments",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = Color.Gray
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "${currentStory.commentsCount}",
+                                            fontSize = 14.sp,
+                                            color = Color.Gray
                                         )
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
-                } else {
-                    if (parts.isEmpty()) {
+
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(
+                                modifier = Modifier.weight(1f),
+                                color = Color.DarkGray.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = "Advertisement",
+                                fontSize = 12.sp,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.weight(1f),
+                                color = Color.DarkGray.copy(alpha = 0.5f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    item {
+                        TabRow(
+                            selectedTabIndex = selectedTab,
+                            containerColor = Color.Transparent,
+                            divider = {}
+                        ) {
+                            tabs.forEachIndexed { index, title ->
+                                Tab(
+                                    selected = selectedTab == index,
+                                    onClick = { selectedTab = index },
+                                    text = {
+                                        Text(
+                                            title,
+                                            fontWeight = if (selectedTab == index) FontWeight.Bold
+                                            else FontWeight.Medium,
+                                            fontSize = 16.sp
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+
+                    if (selectedTab == 0) {
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(100.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No parts available yet.", color = Color.Gray)
+                            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Outlined.Book,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    val wordCount = parts.sumOf {
+                                        it.content.split(Regex("\\s+"))
+                                            .count { w -> w.isNotBlank() }
+                                    }
+                                    val matureText = if (currentStory.isMature) "Mature" else "Everyone"
+                                    val completeText = if (currentStory.isCompleted) "Complete" else "Ongoing"
+                                    Text(
+                                        text = "$matureText • $completeText • $wordCount words",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                var isExpanded by remember { mutableStateOf(false) }
+                                Text(
+                                    text = currentStory.overview,
+                                    fontSize = 15.sp,
+                                    lineHeight = 24.sp,
+                                    maxLines = if (isExpanded) Int.MAX_VALUE else 4,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (!isExpanded && currentStory.overview.length > 150) {
+                                    Text(
+                                        text = "Read more",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .padding(top = 4.dp)
+                                            .clickable { isExpanded = true }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(32.dp))
+
+                                Text(
+                                    text = "Reviews",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                if (reviews.isEmpty()) {
+                                    Text(
+                                        "No reviews yet. Be the first to review!",
+                                        color = Color.Gray,
+                                        fontSize = 14.sp
+                                    )
+                                } else {
+                                    reviews.forEach { review ->
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 16.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = review.username,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Row {
+                                                    for (i in 1..5) {
+                                                        Icon(
+                                                            imageVector = if (i <= review.rating)
+                                                                Icons.Default.Star
+                                                            else Icons.Default.StarBorder,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFFFFD700),
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = review.comment,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(80.dp))
                             }
                         }
                     } else {
-                        items(parts) { part ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onNavigateToReadPart(storyId, part.id) }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = part.title,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(
-                                    text = dateFormat.format(Date(part.publishedAt)),
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
+                        if (parts.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(100.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No parts available yet.", color = Color.Gray)
+                                }
                             }
-                        }
-                        item {
-                            Spacer(modifier = Modifier.height(80.dp))
+                        } else {
+                            items(parts) { part ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onNavigateToReadPart(storyId, part.id) }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = part.title,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Text(
+                                        text = dateFormat.format(Date(part.publishedAt)),
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                            item {
+                                Spacer(modifier = Modifier.height(80.dp))
+                            }
                         }
                     }
                 }

@@ -33,6 +33,7 @@ fun StoryDetailScreen(
 ) {
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(storyId) {
         viewModel.getStoryById(storyId)
@@ -82,13 +83,26 @@ fun StoryDetailScreen(
                     )
                     if (!it.isPublished) {
                         Button(
-                            onClick = { viewModel.publishStory(it.id) },
+                            onClick = { 
+                                viewModel.publishStory(it.id)
+                                android.widget.Toast.makeText(context, "Story published", android.widget.Toast.LENGTH_SHORT).show()
+                            },
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Publish Story")
                         }
                     } else {
-                        Text("Published", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Button(
+                            onClick = { 
+                                viewModel.unpublishStory(it.id)
+                                android.widget.Toast.makeText(context, "Story unpublished", android.widget.Toast.LENGTH_SHORT).show()
+                                onNavigateBack()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        ) {
+                            Text("Unpublish Story")
+                        }
                     }
                 }
                 
@@ -104,7 +118,11 @@ fun StoryDetailScreen(
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         items(parts) { part ->
-                            PartItem(part = part, onEdit = { onNavigateToWritePart(storyId) }) // Mocking edit navigation for now
+                            PartItem(
+                                part = part, 
+                                onEdit = { onNavigateToWritePart("${storyId}?partId=${part.id}") },
+                                onDelete = { viewModel.deletePart(part.id) }
+                            )
                         }
                     }
                 }
@@ -114,8 +132,8 @@ fun StoryDetailScreen(
 }
 
 @Composable
-fun PartItem(part: StoryPart, onEdit: () -> Unit) {
-    var isPublished by remember { mutableStateOf(true) } // Mock state
+fun PartItem(part: StoryPart, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val isPublished = true // Mock state
 
     Surface(
         onClick = onEdit,
@@ -133,7 +151,7 @@ fun PartItem(part: StoryPart, onEdit: () -> Unit) {
             
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Chapter ${part.order}: ${part.title}",
+                    text = part.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -142,17 +160,12 @@ fun PartItem(part: StoryPart, onEdit: () -> Unit) {
             Spacer(modifier = Modifier.width(8.dp))
             
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Switch(
-                    checked = isPublished,
-                    onCheckedChange = { isPublished = it },
-                    modifier = Modifier.height(24.dp)
-                )
-                Text(if (isPublished) "Published" else "Draft", fontSize = 10.sp, color = Color.Gray)
+                Text(if (part.isPublished) "Published" else "Unpublished", fontSize = 10.sp, color = Color.Gray)
             }
             
             Spacer(modifier = Modifier.width(8.dp))
             
-            IconButton(onClick = { /* TODO: Delete part */ }) {
+            IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
             }
         }

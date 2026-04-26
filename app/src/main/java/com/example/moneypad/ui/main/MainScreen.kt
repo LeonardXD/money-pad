@@ -70,7 +70,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
                 ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it })
             }
             composable(BottomNavItem.Write.route) {
-                WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
+                WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
             }
             composable(BottomNavItem.Earnings.route) {
                 androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
@@ -124,6 +124,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory,
                 storyId = storyId,
                 partId = partId,
                 onNavigateBack = { exploreNavController.popBackStack() },
+                onNavigateToPart = { id -> exploreNavController.navigate("read/$storyId/$id") },
                 viewModel = storyViewModel
             )
         }
@@ -142,7 +143,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory,
 }
 
 @Composable
-fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -> Unit) {
+fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -> Unit, rootNavController: androidx.navigation.NavController) {
     val writeNavController = rememberNavController()
 
     NavHost(navController = writeNavController, startDestination = "list") {
@@ -178,14 +179,23 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
                 viewModel = storyViewModel
             )
         }
-        composable("write_part/{storyId}") { backStackEntry ->
+        composable(
+            route = "write_part/{storyId}?partId={partId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("storyId") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("partId") { type = androidx.navigation.NavType.StringType; nullable = true }
+            )
+        ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            val partId = backStackEntry.arguments?.getString("partId")
             WritePartScreen(
                 storyId = storyId,
+                partId = partId,
                 onNavigateBack = { writeNavController.popBackStack() },
                 onPartSaved = { writeNavController.popBackStack() },
-                viewModel = storyViewModel
+                viewModel = storyViewModel,
+                navController = rootNavController
             )
         }
     }

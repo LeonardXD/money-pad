@@ -15,7 +15,8 @@ import com.example.moneypad.data.model.*
         Transaction::class,
         Conversation::class,
         Follow::class,
-        Review::class
+        Review::class,
+        UserReadPart::class
     ],
     version = 10,
     exportSchema = false

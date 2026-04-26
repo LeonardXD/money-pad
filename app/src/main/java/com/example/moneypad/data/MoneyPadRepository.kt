@@ -297,32 +297,86 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 authorId = currentUserId, authorName = currentUsername,
                 title = title, genres = genres, overview = overview,
                 coverImageUrl = coverImageUrl,
-                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
+                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
+                lastUpdatedAt = System.currentTimeMillis()
             )
         )
         return id
     }
 
-    suspend fun publishStory(storyId: String) = dao.publishStory(storyId)
+    suspend fun publishStory(storyId: String) = dao.publishStory(storyId, System.currentTimeMillis())
+
+    suspend fun unpublishStory(storyId: String) = dao.unpublishStory(storyId, System.currentTimeMillis())
+
+    suspend fun deleteStory(storyId: String) {
+        dao.deleteStory(storyId)
+        dao.deleteStoryParts(storyId)
+    }
 
     fun getStoriesByGenre(genre: String): Flow<List<Story>> = dao.getStoriesByGenre(genre)
 
-    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int) {
+    fun getUpdatedStories(): Flow<List<Story>> = dao.getUpdatedStories()
+
+    fun getRecentlyReadStoryIds(): Flow<List<String>> = dao.getRecentlyReadStoryIds(currentUserId)
+
+    fun getReadPartsCount(storyId: String): Flow<Int> = dao.getReadPartsCountForStory(currentUserId, storyId)
+
+    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false) {
+        val now = System.currentTimeMillis()
         dao.insertStoryPart(
             StoryPart(
-                id = UUID.randomUUID().toString(),
+                id = partId ?: UUID.randomUUID().toString(),
                 storyId = storyId, title = title, content = content, order = order,
-                publishedAt = System.currentTimeMillis()
+                publishedAt = now,
+                isPublished = isPublished
             )
         )
+        if (isPublished) {
+            dao.updateStoryLastUpdated(storyId, now)
+        }
+    }
+
+    suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean) {
+        val now = System.currentTimeMillis()
+        dao.insertStoryPart(
+            StoryPart(
+                id = partId,
+                storyId = storyId,
+                title = title,
+                content = content,
+                order = order,
+                publishedAt = now,
+                isPublished = isPublished
+            )
+        )
+        if (isPublished) {
+            dao.updateStoryLastUpdated(storyId, now)
+        }
+    }
+
+    suspend fun deleteStoryPart(partId: String) {
+        dao.deleteStoryPart(partId)
     }
 
     fun getPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPartsForStory(storyId)
+
+    fun getPublishedPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPublishedPartsForStory(storyId)
 
     suspend fun recordRead(storyId: String) {
         val story = dao.getStoryById(storyId) ?: return
         dao.incrementReadCount(storyId)
         dao.updateBalance(story.authorId, 0.0001)
+    }
+
+    suspend fun recordPartRead(storyId: String, partId: String) {
+        dao.insertUserReadPart(
+            com.example.moneypad.data.model.UserReadPart(
+                userId = currentUserId,
+                partId = partId,
+                storyId = storyId,
+                readAt = System.currentTimeMillis()
+            )
+        )
     }
 
     suspend fun withdraw(amount: Double, method: String, accountInfo: String): Boolean {
@@ -342,9 +396,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.getTransactionsForUser(userId)
 
     fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> =
-        dao.searchStories(query, genre)
+        dao.searchStoriesExcludingAuthor(query, genre, currentUserId)
 
-    fun searchAuthors(query: String): Flow<List<User>> = dao.searchAuthors(query)
+    fun searchAuthors(query: String): Flow<List<User>> = dao.searchAuthorsExcludingSelf(query, currentUserId)
 
     // ── Conversations ─────────────────────────────────────────────────────────
 
