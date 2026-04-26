@@ -55,6 +55,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     // ── Auth ──────────────────────────────────────────────────────────────────
 
+    suspend fun isUsernameTaken(username: String): Boolean {
+        return dao.getUserByUsername(username) != null
+    }
+
+    suspend fun isEmailTaken(email: String): Boolean {
+        return dao.getUserByEmail(email) != null
+    }
+
     suspend fun signup(
         username: String,
         email: String,

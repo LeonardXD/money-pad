@@ -3,7 +3,6 @@ package com.example.moneypad.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,8 +39,8 @@ fun WritePartScreen(
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
 
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) Color.Black else Color.White
+    val bgColor = MaterialTheme.colorScheme.background
+    val textColor = MaterialTheme.colorScheme.onBackground
 
     // Save as draft and go back
     fun saveDraftAndExit() {
@@ -252,7 +251,7 @@ fun WritePartScreen(
                 textStyle = TextStyle(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDark) Color.White else Color.Black
+                    color = textColor
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -279,7 +278,7 @@ fun WritePartScreen(
                 textStyle = TextStyle(
                     fontSize = 16.sp,
                     lineHeight = 24.sp,
-                    color = if (isDark) Color.White else Color.Black
+                    color = textColor
                 ),
                 modifier = Modifier.fillMaxSize()
             )

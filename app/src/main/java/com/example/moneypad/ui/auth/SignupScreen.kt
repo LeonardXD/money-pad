@@ -5,6 +5,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -73,7 +75,9 @@ fun SignupScreen(
         MoneyPadTextField(
             value = uiState.username,
             onValueChange = { viewModel.onUsernameChange(it) },
-            label = "Create Username"
+            label = "Create Username",
+            isError = uiState.isUsernameTaken,
+            errorMessage = if (uiState.isUsernameTaken) "Username is already taken" else null
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -81,7 +85,9 @@ fun SignupScreen(
         MoneyPadTextField(
             value = uiState.email,
             onValueChange = { viewModel.onEmailChange(it) },
-            label = "Enter Email"
+            label = "Enter Email",
+            isError = uiState.isEmailTaken,
+            errorMessage = if (uiState.isEmailTaken) "Email is already registered" else null
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -98,6 +104,8 @@ fun SignupScreen(
                 }
             }
         )
+
+        PasswordRequirements(uiState.password)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -116,22 +124,13 @@ fun SignupScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Referrer field ──────────────────────────────────────────────────
         MoneyPadTextField(
             value = uiState.referrerUsername,
             onValueChange = { viewModel.onReferrerUsernameChange(it) },
-            label = "Referrer's Username (optional)",
-        )
-        Text(
-            text = "Enter referral username (e.g. inpenity)",
-            fontSize = 11.sp,
-            color = Color.Gray,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, top = 2.dp)
+            label = "Referrer Username (Optional)"
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // ── Terms acknowledgment ────────────────────────────────────────────
         Row(
@@ -177,5 +176,36 @@ fun SignupScreen(
         TextButton(onClick = onNavigateToLogin) {
             Text("Already have an account? Login", color = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+@Composable
+fun PasswordRequirementRow(text: String, isMet: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+        Icon(
+            imageVector = if (isMet) Icons.Filled.Check else Icons.Filled.Close,
+            contentDescription = null,
+            tint = if (isMet) Color(0xFF4CAF50) else Color.Red,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text, fontSize = 12.sp, color = if (isMet) Color(0xFF4CAF50) else Color.Gray)
+    }
+}
+
+@Composable
+fun PasswordRequirements(password: String) {
+    val hasMinLength = password.length in 8..16
+    val hasUppercase = password.any { it.isUpperCase() }
+    val hasLowercase = password.any { it.isLowerCase() }
+    val hasNumber = password.any { it.isDigit() }
+    val hasSpecial = password.any { !it.isLetterOrDigit() }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 4.dp)) {
+        PasswordRequirementRow("8-16 characters", hasMinLength)
+        PasswordRequirementRow("Uppercase letter", hasUppercase)
+        PasswordRequirementRow("Lowercase letter", hasLowercase)
+        PasswordRequirementRow("Number", hasNumber)
+        PasswordRequirementRow("Special character", hasSpecial)
     }
 }

@@ -1,6 +1,5 @@
 package com.example.moneypad.ui.screens
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,7 +21,7 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     var showWithdrawDialog by remember { mutableStateOf(false) }
 
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF121212)
     val balanceColor = if (isDark) Color(0xFFFFD700) else Color(0xFF6200EE)
 
     val conversionRate = 60.0

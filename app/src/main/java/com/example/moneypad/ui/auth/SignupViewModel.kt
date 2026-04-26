@@ -14,6 +14,8 @@ data class SignupUiState(
     val password: String = "",
     val confirmPassword: String = "",
     val referrerUsername: String = "",
+    val isUsernameTaken: Boolean = false,
+    val isEmailTaken: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSuccess: Boolean = false
@@ -23,8 +25,31 @@ class SignupViewModel(private val repository: MoneyPadRepository) : ViewModel() 
     private val _uiState = MutableStateFlow(SignupUiState())
     val uiState: StateFlow<SignupUiState> = _uiState.asStateFlow()
 
-    fun onUsernameChange(v: String) = update { copy(username = v) }
-    fun onEmailChange(v: String) = update { copy(email = v) }
+    private var usernameJob: kotlinx.coroutines.Job? = null
+    private var emailJob: kotlinx.coroutines.Job? = null
+
+    fun onUsernameChange(v: String) {
+        update { copy(username = v, isUsernameTaken = false) }
+        usernameJob?.cancel()
+        if (v.isNotBlank()) {
+            usernameJob = viewModelScope.launch {
+                val taken = repository.isUsernameTaken(v)
+                update { copy(isUsernameTaken = taken) }
+            }
+        }
+    }
+
+    fun onEmailChange(v: String) {
+        update { copy(email = v, isEmailTaken = false) }
+        emailJob?.cancel()
+        if (v.isNotBlank()) {
+            emailJob = viewModelScope.launch {
+                val taken = repository.isEmailTaken(v)
+                update { copy(isEmailTaken = taken) }
+            }
+        }
+    }
+
     fun onPasswordChange(v: String) = update { copy(password = v) }
     fun onConfirmPasswordChange(v: String) = update { copy(confirmPassword = v) }
     fun onReferrerUsernameChange(v: String) = update { copy(referrerUsername = v) }
