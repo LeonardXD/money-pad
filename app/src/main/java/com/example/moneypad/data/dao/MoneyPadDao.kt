@@ -46,6 +46,21 @@ interface MoneyPadDao {
     @Query("UPDATE users SET username = :username, birthday = :birthday, gender = :gender, preferredGenres = :preferredGenres WHERE id = :userId")
     suspend fun updateUserSettings(userId: String, username: String, birthday: String, gender: String, preferredGenres: String)
 
+    @Query("UPDATE users SET gender = :gender, onboardingStep = MAX(onboardingStep, 2) WHERE id = :userId")
+    suspend fun updateOnboardingGender(userId: String, gender: String)
+
+    @Query("UPDATE users SET birthday = :birthday, onboardingStep = MAX(onboardingStep, 3) WHERE id = :userId")
+    suspend fun updateOnboardingBirthday(userId: String, birthday: String)
+
+    @Query("UPDATE users SET preferredGenres = :preferredGenres WHERE id = :userId")
+    suspend fun updatePreferredGenres(userId: String, preferredGenres: String)
+
+    @Query("UPDATE users SET onboardingStep = :step WHERE id = :userId")
+    suspend fun updateOnboardingStep(userId: String, step: Int)
+
+    @Query("UPDATE users SET onboardingCompleted = 1, onboardingStep = 3 WHERE id = :userId")
+    suspend fun markOnboardingCompleted(userId: String)
+
     @Query("UPDATE users SET password = :newPassword WHERE id = :userId")
     suspend fun updatePassword(userId: String, newPassword: String)
 
@@ -95,6 +110,9 @@ interface MoneyPadDao {
     // ── Stories ───────────────────────────────────────────────────────────────
     @Query("SELECT * FROM stories WHERE isPublished = 1")
     fun getAllStories(): Flow<List<Story>>
+
+    @Query("SELECT genres FROM stories WHERE genres != ''")
+    fun getAllStoryGenres(): Flow<List<String>>
 
     @Query("SELECT * FROM stories WHERE authorId = :authorId AND isPublished = 1 ORDER BY rowid DESC")
     fun getPublishedStoriesByAuthor(authorId: String): Flow<List<Story>>

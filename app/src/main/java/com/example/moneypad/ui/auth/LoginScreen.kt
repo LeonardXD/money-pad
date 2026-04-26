@@ -27,7 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 @Composable
 fun LoginScreen(
     onNavigateToSignup: () -> Unit,
-    onLoginSuccess: () -> Unit,
+    onLoginSuccess: (Boolean) -> Unit,
     viewModel: LoginViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -35,7 +35,7 @@ fun LoginScreen(
 
     LaunchedEffect(uiState.isSuccess) {
         if (uiState.isSuccess) {
-            onLoginSuccess()
+            onLoginSuccess(uiState.requiresOnboarding)
         }
     }
 

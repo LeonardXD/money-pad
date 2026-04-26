@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.ui.auth.LoginViewModel
+import com.example.moneypad.ui.auth.OnboardingViewModel
 import com.example.moneypad.ui.auth.SignupViewModel
 import com.example.moneypad.ui.screens.EarningsViewModel
 import com.example.moneypad.ui.screens.ProfileViewModel
@@ -24,6 +25,8 @@ class ViewModelFactory(private val repository: MoneyPadRepository) : ViewModelPr
                 LoginViewModel(repository) as T
             modelClass.isAssignableFrom(SignupViewModel::class.java) ->
                 SignupViewModel(repository) as T
+            modelClass.isAssignableFrom(OnboardingViewModel::class.java) ->
+                OnboardingViewModel(repository) as T
             modelClass.isAssignableFrom(ThemeViewModel::class.java) ->
                 ThemeViewModel() as T
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")

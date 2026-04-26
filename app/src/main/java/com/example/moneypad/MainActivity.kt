@@ -33,8 +33,20 @@ class MainActivity : ComponentActivity() {
             val themeViewModel: ThemeViewModel = viewModel(factory = factory)
             val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
 
-            // Respect 7-day session expiry
-            val startDestination = if (repository.hasActiveSession()) "main" else "login"
+            val currentUser by repository.getCurrentUser().collectAsState(initial = null)
+
+            // Determine start destination
+            val startDestination = remember(currentUser) {
+                if (repository.hasActiveSession()) {
+                    if (currentUser != null && currentUser?.onboardingCompleted == false) {
+                        "onboarding"
+                    } else {
+                        "main"
+                    }
+                } else {
+                    "login"
+                }
+            }
 
             LaunchedEffect(Unit) {
                 repository.initUser()
@@ -42,7 +54,11 @@ class MainActivity : ComponentActivity() {
 
             MoneyPadTheme(darkTheme = isDarkTheme) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
-                    MoneyPadApp(factory, themeViewModel, startDestination)
+                    if (repository.hasActiveSession() && currentUser == null) {
+                         // Loading state or just show a blank screen while loading user
+                    } else {
+                         MoneyPadApp(factory, themeViewModel, startDestination)
+                    }
                 }
             }
         }
@@ -57,8 +73,9 @@ fun MoneyPadApp(factory: ViewModelFactory, themeViewModel: ThemeViewModel, start
         composable("login") {
             LoginScreen(
                 onNavigateToSignup = { navController.navigate("signup") },
-                onLoginSuccess = {
-                    navController.navigate("main") {
+                onLoginSuccess = { requiresOnboarding ->
+                    val dest = if (requiresOnboarding) "onboarding" else "main"
+                    navController.navigate(dest) {
                         popUpTo("login") { inclusive = true }
                     }
                 },
@@ -71,6 +88,16 @@ fun MoneyPadApp(factory: ViewModelFactory, themeViewModel: ThemeViewModel, start
                 onSignupSuccess = {
                     navController.navigate("login") {
                         popUpTo("signup") { inclusive = true }
+                    }
+                },
+                viewModel = viewModel(factory = factory)
+            )
+        }
+        composable("onboarding") {
+            com.example.moneypad.ui.auth.OnboardingScreen(
+                onOnboardingComplete = {
+                    navController.navigate("main") {
+                        popUpTo("onboarding") { inclusive = true }
                     }
                 },
                 viewModel = viewModel(factory = factory)

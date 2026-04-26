@@ -13,7 +13,8 @@ data class LoginUiState(
     val password: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val requiresOnboarding: Boolean = false
 )
 
 class LoginViewModel(private val repository: MoneyPadRepository) : ViewModel() {
@@ -39,7 +40,12 @@ class LoginViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         viewModelScope.launch {
             val result = repository.login(uiState.value.username, uiState.value.password)
             if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(isLoading = false, isSuccess = true)
+                val user = result.getOrNull()
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false, 
+                    isSuccess = true,
+                    requiresOnboarding = user?.onboardingCompleted == false
+                )
             } else {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false, 

@@ -23,7 +23,9 @@ data class User(
     val preferredGenres: String = "",   // comma-separated, max 5
     val referredBy: String = "",        // username of referrer
     val referralCount: Int = 0,         // how many users this user referred
-    val loginTimestamp: Long = 0L       // epoch ms of last login — used for 7-day session check
+    val loginTimestamp: Long = 0L,      // epoch ms of last login, used for 7-day session check
+    val onboardingStep: Int = 1,
+    val onboardingCompleted: Boolean = false
 )
 
 @Entity(tableName = "conversations")

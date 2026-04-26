@@ -4,9 +4,23 @@ import android.content.Context
 import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.UUID
 
 private const val SESSION_DURATION_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
+private const val MINIMUM_ONBOARDING_AGE = 16
+private const val MAX_PREFERRED_GENRES = 5
+
+private val DEFAULT_STORY_GENRES = listOf(
+    "Romance", "Fantasy", "Mystery", "Sci-Fi", "Horror",
+    "Action", "LGBTQIA+", "Werewolf", "New Adult", "Short Story",
+    "Teen Fiction", "Historical Fiction", "Paranormal", "Humor",
+    "Contemporary Lit", "Diverse Lit", "Thriller", "Adventure",
+    "Fan Fiction", "Non-Fiction", "Poetry"
+)
 
 class MoneyPadRepository(private val context: Context, private val dao: MoneyPadDao) {
 
@@ -102,6 +116,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getUser(userId: String): Flow<User?> = dao.getUser(userId)
 
+    fun getCurrentUser(): Flow<User?> = dao.getUser(currentUserId)
+
     suspend fun initUser() {
         // Expire session if older than 7 days
         if (currentUserId.isNotEmpty() && !hasActiveSession()) {
@@ -127,6 +143,78 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.updateUserSettings(currentUserId, username, birthday, gender, preferredGenres)
         currentUsername = username
         sharedPreferences.edit().putString("username", username).apply()
+        return Result.success(Unit)
+    }
+
+    fun getAvailableGenres(): Flow<List<String>> = dao.getAllStoryGenres().map { genreRows ->
+        val discovered = genreRows
+            .flatMap { row -> row.split(",") }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+        (discovered + DEFAULT_STORY_GENRES).distinct()
+    }
+
+    suspend fun saveOnboardingGender(gender: String): Result<Unit> {
+        val normalizedGender = gender.trim()
+        val validGenders = setOf("Male", "Female", "Others")
+        if (normalizedGender !in validGenders) {
+            return Result.failure(Exception("Choose a gender to continue"))
+        }
+
+        dao.updateOnboardingGender(currentUserId, normalizedGender)
+        return Result.success(Unit)
+    }
+
+    suspend fun saveOnboardingBirthday(birthday: String): Result<Unit> {
+        if (birthday.isBlank()) {
+            return Result.failure(Exception("Choose your birthday to continue"))
+        }
+
+        val birthDate = try {
+            LocalDate.parse(birthday, DateTimeFormatter.ISO_LOCAL_DATE)
+        } catch (_: DateTimeParseException) {
+            return Result.failure(Exception("Enter a valid birthday"))
+        }
+
+        val minimumBirthDate = LocalDate.now().minusYears(MINIMUM_ONBOARDING_AGE.toLong())
+        if (birthDate.isAfter(minimumBirthDate)) {
+            return Result.failure(Exception("You must be at least 16 years old"))
+        }
+
+        dao.updateOnboardingBirthday(currentUserId, birthday)
+        return Result.success(Unit)
+    }
+
+    suspend fun saveOnboardingGenres(genres: List<String>): Result<Unit> {
+        val selectedGenres = genres.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (selectedGenres.size > MAX_PREFERRED_GENRES) {
+            return Result.failure(Exception("Choose up to 5 genres"))
+        }
+
+        dao.updatePreferredGenres(currentUserId, selectedGenres.joinToString(","))
+        return Result.success(Unit)
+    }
+
+    suspend fun completeOnboarding(genres: List<String>): Result<Unit> {
+        val genreResult = saveOnboardingGenres(genres)
+        if (genreResult.isFailure) return genreResult
+
+        val user = dao.getUserByUsername(currentUsername)
+            ?: return Result.failure(Exception("User session expired"))
+        if (user.gender.isBlank()) {
+            dao.updateOnboardingStep(currentUserId, 1)
+            return Result.failure(Exception("Choose a gender to continue"))
+        }
+        val birthdayResult = saveOnboardingBirthday(user.birthday)
+        if (birthdayResult.isFailure) {
+            dao.updateOnboardingStep(currentUserId, 2)
+            return birthdayResult
+        }
+
+        dao.markOnboardingCompleted(currentUserId)
         return Result.success(Unit)
     }
 
