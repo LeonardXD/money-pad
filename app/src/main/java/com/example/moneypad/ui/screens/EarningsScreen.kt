@@ -238,7 +238,7 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                 viewModel.withdraw(amount, method, info)
                 showWithdrawDialog = false
             },
-            currentBalance = totalPhp
+            currentBalancePhp = totalPhp
         )
     }
 }
@@ -247,46 +247,97 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
 fun WithdrawDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double, String, String) -> Unit,
-    currentBalance: Double
+    currentBalancePhp: Double
 ) {
     var amount by remember { mutableStateOf("") }
     var method by remember { mutableStateOf("GCash") }
     var accountInfo by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showProcessingAlert by remember { mutableStateOf(false) }
+
+    if (showProcessingAlert) {
+        AlertDialog(
+            onDismissRequest = { showProcessingAlert = false },
+            title = { Text("Request Submitted") },
+            text = { Text("Your withdrawal request has been received and will be processed within 2 to 14 days. Thank you for your patience!") },
+            confirmButton = {
+                Button(onClick = {
+                    val amt = amount.toDoubleOrNull() ?: 0.0
+                    onConfirm(amt, method, accountInfo)
+                    showProcessingAlert = false
+                }) { Text("OK") }
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Withdraw Funds") },
         text = {
             Column {
+                Text("Minimum withdrawal: ₱60.00 ($1.00)", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+                
                 Text("Select Method:", fontSize = 14.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = method == "GCash", onClick = { method = "GCash" })
+                    RadioButton(selected = method == "GCash", onClick = { method = "GCash"; errorMessage = null })
                     Text("GCash")
                     Spacer(modifier = Modifier.width(16.dp))
-                    RadioButton(selected = method == "PayMaya", onClick = { method = "PayMaya" })
+                    RadioButton(selected = method == "PayMaya", onClick = { method = "PayMaya"; errorMessage = null })
                     Text("PayMaya")
                 }
+                
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { amount = it },
+                    onValueChange = { 
+                        amount = it
+                        errorMessage = null
+                    },
                     label = { Text("Amount (PHP)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = errorMessage != null && errorMessage?.contains("Amount") == true
                 )
+                
                 Spacer(modifier = Modifier.height(8.dp))
+                
                 OutlinedTextField(
                     value = accountInfo,
-                    onValueChange = { accountInfo = it },
-                    label = { Text(if (method == "GCash") "GCash Number" else "PayMaya Number") },
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = { 
+                        if (it.length <= 11) {
+                            accountInfo = it
+                            errorMessage = null
+                        }
+                    },
+                    label = { Text(if (method == "GCash") "GCash Number (09xxxxxxxx)" else "PayMaya Number (09xxxxxxxx)") },
+                    placeholder = { Text("09123456789") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = errorMessage != null && errorMessage?.contains("Number") == true
                 )
+                
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         },
         confirmButton = {
             Button(onClick = {
                 val amt = amount.toDoubleOrNull() ?: 0.0
-                if (amt > 0.0 && amt <= currentBalance && accountInfo.isNotBlank()) {
-                    onConfirm(amt, method, accountInfo)
+                val phoneRegex = "^09\\d{9}$".toRegex()
+                
+                when {
+                    amt < 60.0 -> errorMessage = "Minimum withdrawal is ₱60.00"
+                    amt > currentBalancePhp -> errorMessage = "Insufficient balance"
+                    !accountInfo.matches(phoneRegex) -> errorMessage = "Enter a valid 11-digit number starting with 09"
+                    else -> {
+                        showProcessingAlert = true
+                    }
                 }
             }) { Text("Confirm") }
         },

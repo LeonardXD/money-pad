@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -55,6 +57,7 @@ fun StoryViewScreen(
     var showReviewDialog by remember { mutableStateOf(false) }
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
+    val isLiked by viewModel.isStoryLiked(storyId).collectAsState(initial = false)
     
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
@@ -131,7 +134,7 @@ fun StoryViewScreen(
                             }
 
                             IconButton(
-                                onClick = { /* TODO: Open comments */ },
+                                onClick = { viewModel.toggleLike(storyId) },
                                 modifier = Modifier
                                     .size(50.dp)
                                     .background(
@@ -140,8 +143,9 @@ fun StoryViewScreen(
                                     )
                             ) {
                                 Icon(
-                                    Icons.Default.ChatBubbleOutline,
-                                    contentDescription = "Comment"
+                                    if (isLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = "Like",
+                                    tint = if (isLiked) Color.Red else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
@@ -222,12 +226,6 @@ fun StoryViewScreen(
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Season 1 of 4",
-                                    fontSize = 14.sp,
-                                    color = Color.Gray
-                                )
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -277,7 +275,7 @@ fun StoryViewScreen(
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            Icons.Default.StarBorder,
+                                            Icons.Default.FavoriteBorder,
                                             contentDescription = "Likes",
                                             modifier = Modifier.size(16.dp),
                                             tint = Color.Gray

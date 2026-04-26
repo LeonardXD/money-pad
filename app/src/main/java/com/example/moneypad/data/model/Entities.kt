@@ -81,7 +81,8 @@ data class StoryPart(
     val content: String,
     val order: Int,
     val publishedAt: Long = System.currentTimeMillis(),
-    val isPublished: Boolean = false
+    val isPublished: Boolean = false,
+    val readCount: Int = 0
 )
 
 @Entity(tableName = "transactions")
@@ -103,5 +104,25 @@ data class Review(
     val username: String,
     val rating: Int,
     val comment: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "user_story_likes", primaryKeys = ["userId", "storyId"])
+data class UserStoryLike(
+    val userId: String,
+    val storyId: String
+)
+
+@Entity(tableName = "part_annotations")
+data class PartAnnotation(
+    @PrimaryKey val id: String,
+    val partId: String,
+    val userId: String,
+    val username: String,
+    val selectedText: String,
+    val startIndex: Int,
+    val endIndex: Int,
+    val type: String, // "LIKE" or "COMMENT"
+    val content: String? = null, // Used for comments
     val timestamp: Long = System.currentTimeMillis()
 )

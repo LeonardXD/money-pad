@@ -25,6 +25,12 @@ interface MoneyPadDao {
     @Query("UPDATE users SET balance = balance + :amount WHERE id = :userId")
     suspend fun updateBalance(userId: String, amount: Double)
 
+    @Query("UPDATE users SET authorIncome = authorIncome + :amount WHERE id = :userId")
+    suspend fun updateAuthorIncome(userId: String, amount: Double)
+
+    @Query("UPDATE users SET readerCoins = readerCoins + :amount WHERE id = :userId")
+    suspend fun updateReaderCoins(userId: String, amount: Int)
+
     @Query("UPDATE users SET balance = balance - :amount WHERE id = :userId")
     suspend fun deductBalance(userId: String, amount: Double)
 
@@ -135,6 +141,15 @@ interface MoneyPadDao {
     @Query("UPDATE stories SET readCount = readCount + 1 WHERE id = :storyId")
     suspend fun incrementReadCount(storyId: String)
 
+    @Query("UPDATE stories SET uniqueViews = uniqueViews + 1 WHERE id = :storyId")
+    suspend fun incrementUniqueViews(storyId: String)
+
+    @Query("UPDATE stories SET repeatedViews = repeatedViews + 1 WHERE id = :storyId")
+    suspend fun incrementRepeatedViews(storyId: String)
+
+    @Query("UPDATE story_parts SET readCount = readCount + 1 WHERE id = :partId")
+    suspend fun incrementPartReadCount(partId: String)
+
     @Query("UPDATE stories SET isPublished = 1, lastUpdatedAt = :timestamp WHERE id = :storyId")
     suspend fun publishStory(storyId: String, timestamp: Long = System.currentTimeMillis())
 
@@ -182,6 +197,9 @@ interface MoneyPadDao {
     @Query("SELECT COUNT(*) FROM user_read_parts WHERE userId = :userId AND storyId = :storyId")
     fun getReadPartsCountForStory(userId: String, storyId: String): Flow<Int>
 
+    @Query("SELECT MAX(readAt) FROM user_read_parts WHERE userId = :userId AND storyId = :storyId")
+    suspend fun getLastReadTimestamp(userId: String, storyId: String): Long?
+
 
     // ── Transactions ──────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -199,4 +217,27 @@ interface MoneyPadDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM reviews WHERE storyId = :storyId AND userId = :userId)")
     fun hasUserReviewed(storyId: String, userId: String): Flow<Boolean>
+
+    // ── Likes ────────────────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStoryLike(like: com.example.moneypad.data.model.UserStoryLike)
+
+    @Query("DELETE FROM user_story_likes WHERE userId = :userId AND storyId = :storyId")
+    suspend fun deleteStoryLike(userId: String, storyId: String)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_story_likes WHERE userId = :userId AND storyId = :storyId)")
+    fun isStoryLikedByUser(userId: String, storyId: String): Flow<Boolean>
+
+    @Query("UPDATE stories SET likes = (SELECT COUNT(*) FROM user_story_likes WHERE storyId = :storyId) WHERE id = :storyId")
+    suspend fun updateStoryLikesCount(storyId: String)
+
+    // ── Part Annotations ──────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPartAnnotation(annotation: com.example.moneypad.data.model.PartAnnotation)
+
+    @Query("SELECT * FROM part_annotations WHERE partId = :partId ORDER BY timestamp DESC")
+    fun getAnnotationsForPart(partId: String): Flow<List<com.example.moneypad.data.model.PartAnnotation>>
+
+    @Query("SELECT COUNT(*) FROM part_annotations WHERE partId = :partId AND selectedText = :selectedText AND startIndex = :startIndex AND endIndex = :endIndex AND type = 'LIKE'")
+    fun getReactionCountForText(partId: String, selectedText: String, startIndex: Int, endIndex: Int): Flow<Int>
 }

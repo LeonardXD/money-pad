@@ -200,4 +200,40 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     fun getStoriesByAuthor(authorId: String): Flow<List<Story>> =
         repository.getPublishedStoriesByAuthor(authorId)
+
+    fun isStoryLiked(storyId: String): Flow<Boolean> = repository.isStoryLikedByUser(storyId)
+
+    fun toggleLike(storyId: String) {
+        viewModelScope.launch {
+            repository.toggleStoryLike(storyId)
+            // Refresh current story to update like count
+            _currentStory.value = repository.getStoryById(storyId)
+        }
+    }
+
+    private val _partAnnotations = MutableStateFlow<List<com.example.moneypad.data.model.PartAnnotation>>(emptyList())
+    val partAnnotations = _partAnnotations.asStateFlow()
+
+    fun getAnnotationsForPart(partId: String) {
+        viewModelScope.launch {
+            repository.getAnnotationsForPart(partId).collect {
+                _partAnnotations.value = it
+            }
+        }
+    }
+
+    fun addPartAnnotation(
+        partId: String,
+        selectedText: String,
+        startIndex: Int,
+        endIndex: Int,
+        type: String,
+        content: String? = null
+    ) {
+        viewModelScope.launch {
+            repository.addPartAnnotation(partId, selectedText, startIndex, endIndex, type, content)
+            // Refresh annotations to show the new one
+            getAnnotationsForPart(partId)
+        }
+    }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -364,11 +365,30 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun recordRead(storyId: String) {
         val story = dao.getStoryById(storyId) ?: return
-        dao.incrementReadCount(storyId)
-        dao.updateBalance(story.authorId, 0.0001)
+        
+        // Only track views and credit income if reader is NOT the author
+        if (currentUserId != story.authorId) {
+            val lastRead = dao.getLastReadTimestamp(currentUserId, storyId)
+            val now = System.currentTimeMillis()
+            
+            if (lastRead == null) {
+                // First time reading this story - Unique View
+                dao.incrementUniqueViews(storyId)
+                dao.incrementReadCount(storyId)
+                dao.updateAuthorIncome(story.authorId, 0.001)
+            } else if (now - lastRead > 30 * 60 * 1000) {
+                // Came back after at least 30 minutes - Repeated View
+                dao.incrementRepeatedViews(storyId)
+                dao.incrementReadCount(storyId)
+                dao.updateAuthorIncome(story.authorId, 0.001)
+            }
+            // If they read another part within 30 minutes, we don't increment anything
+            // to avoid over-counting during a single session.
+        }
     }
 
     suspend fun recordPartRead(storyId: String, partId: String) {
+        dao.incrementPartReadCount(partId)
         dao.insertUserReadPart(
             com.example.moneypad.data.model.UserReadPart(
                 userId = currentUserId,
@@ -434,4 +454,47 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun hasUserReviewed(storyId: String): Flow<Boolean> =
         dao.hasUserReviewed(storyId, currentUserId)
+
+    // ── Likes ────────────────────────────────────────────────────────────────
+
+    fun isStoryLikedByUser(storyId: String): Flow<Boolean> =
+        dao.isStoryLikedByUser(currentUserId, storyId)
+
+    suspend fun toggleStoryLike(storyId: String) {
+        val alreadyLiked = dao.isStoryLikedByUser(currentUserId, storyId).firstOrNull() ?: false
+        if (alreadyLiked) {
+            dao.deleteStoryLike(currentUserId, storyId)
+        } else {
+            dao.insertStoryLike(UserStoryLike(currentUserId, storyId))
+        }
+        dao.updateStoryLikesCount(storyId)
+    }
+
+    // ── Part Annotations ──────────────────────────────────────────────────────
+
+    suspend fun addPartAnnotation(
+        partId: String,
+        selectedText: String,
+        startIndex: Int,
+        endIndex: Int,
+        type: String,
+        content: String? = null
+    ) {
+        dao.insertPartAnnotation(
+            PartAnnotation(
+                id = UUID.randomUUID().toString(),
+                partId = partId,
+                userId = currentUserId,
+                username = currentUsername,
+                selectedText = selectedText,
+                startIndex = startIndex,
+                endIndex = endIndex,
+                type = type,
+                content = content
+            )
+        )
+    }
+
+    fun getAnnotationsForPart(partId: String): Flow<List<PartAnnotation>> =
+        dao.getAnnotationsForPart(partId)
 }
