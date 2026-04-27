@@ -78,12 +78,79 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             }
             composable(BottomNavItem.Profile.route) {
                 androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
-                ProfileScreen(
-                    viewModel = viewModel(factory = factory),
+                ProfileNavigation(
+                    factory = factory,
                     themeViewModel = themeViewModel,
-                    onLogout = onLogout
+                    onLogout = onLogout,
+                    onShowBottomBar = { showBottomBar = it }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ProfileNavigation(
+    factory: ViewModelFactory,
+    themeViewModel: ThemeViewModel,
+    onLogout: () -> Unit,
+    onShowBottomBar: (Boolean) -> Unit
+) {
+    val profileNavController = rememberNavController()
+    val storyViewModel: StoryViewModel = viewModel(factory = factory)
+    val profileViewModel: ProfileViewModel = viewModel(factory = factory)
+
+    NavHost(navController = profileNavController, startDestination = "my_profile") {
+        composable("my_profile") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
+            ProfileScreen(
+                viewModel = profileViewModel,
+                themeViewModel = themeViewModel,
+                onLogout = onLogout,
+                onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") }
+            )
+        }
+        composable("author_profile/{authorId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
+            PublicProfileScreen(
+                authorId = authorId,
+                onNavigateBack = { profileNavController.popBackStack() },
+                onNavigateToStoryDetail = { id -> 
+                    // For now, we don't have a story view screen in this nav host
+                    // But we could add it if needed
+                    profileNavController.navigate("story_view/$id")
+                },
+                storyViewModel = storyViewModel,
+                profileViewModel = profileViewModel
+            )
+        }
+        composable("story_view/{storyId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            StoryViewScreen(
+                storyId = storyId,
+                onNavigateBack = { profileNavController.popBackStack() },
+                onNavigateToReadPart = { sId, partId ->
+                    profileNavController.navigate("read/$sId/$partId")
+                },
+                onNavigateToRelatedStory = { relatedId ->
+                    profileNavController.navigate("story_view/$relatedId")
+                },
+                viewModel = storyViewModel
+            )
+        }
+        composable("read/{storyId}/{partId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            val partId = backStackEntry.arguments?.getString("partId") ?: ""
+            ReadPartScreen(
+                storyId = storyId,
+                partId = partId,
+                onNavigateBack = { profileNavController.popBackStack() },
+                onNavigateToPart = { id -> profileNavController.navigate("read/$storyId/$id") },
+                viewModel = storyViewModel
+            )
         }
     }
 }

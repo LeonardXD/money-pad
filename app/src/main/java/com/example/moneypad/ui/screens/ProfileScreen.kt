@@ -34,7 +34,8 @@ import com.example.moneypad.ui.theme.ThemeViewModel
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     themeViewModel: ThemeViewModel,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToPublicProfile: (String) -> Unit
 ) {
     val user by viewModel.user.collectAsState()
     val storiesPublished by viewModel.storiesPublished.collectAsState()
@@ -77,7 +78,17 @@ fun ProfileScreen(
         UserListDialog(
             title = "Followers",
             users = followers,
-            onDismiss = { showFollowersDialog = false }
+            onDismiss = { showFollowersDialog = false },
+            onNavigateToPublicProfile = { userId ->
+                showFollowersDialog = false
+                onNavigateToPublicProfile(userId)
+            },
+            isFollowersList = true,
+            myFollowingList = following,
+            onToggleFollow = { targetUser ->
+                val isCurrentlyFollowing = following.any { it.id == targetUser.id }
+                viewModel.toggleFollow(targetUser.id, isCurrentlyFollowing)
+            }
         )
     }
 
@@ -86,7 +97,14 @@ fun ProfileScreen(
         UserListDialog(
             title = "Following",
             users = following,
-            onDismiss = { showFollowingDialog = false }
+            onDismiss = { showFollowingDialog = false },
+            onNavigateToPublicProfile = { userId ->
+                showFollowingDialog = false
+                onNavigateToPublicProfile(userId)
+            },
+            isFollowersList = false,
+            myFollowingList = following,
+            onToggleFollow = {}
         )
     }
 
@@ -218,7 +236,9 @@ fun ProfileScreen(
                 Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
                     StatItem(label = "Following", value = (user?.following ?: 0).toString())
                 }
-                StatItem(label = "Stories", value = storiesPublished.toString())
+                Box(modifier = Modifier.clickable { selectedTab = 1 }) {
+                    StatItem(label = "Stories", value = storiesPublished.toString())
+                }
             }
         }
 
@@ -250,7 +270,15 @@ fun ProfileScreen(
 // ── Followers / Following dialog ──────────────────────────────────────────────
 
 @Composable
-fun UserListDialog(title: String, users: List<User>, onDismiss: () -> Unit) {
+fun UserListDialog(
+    title: String,
+    users: List<User>,
+    onDismiss: () -> Unit,
+    onNavigateToPublicProfile: (String) -> Unit,
+    isFollowersList: Boolean,
+    myFollowingList: List<User>,
+    onToggleFollow: (User) -> Unit
+) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(16.dp),
@@ -268,9 +296,13 @@ fun UserListDialog(title: String, users: List<User>, onDismiss: () -> Unit) {
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(users) { u ->
+                            val isFollowing = myFollowingList.any { it.id == u.id }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onNavigateToPublicProfile(u.id) }
+                                    .padding(vertical = 4.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -291,7 +323,17 @@ fun UserListDialog(title: String, users: List<User>, onDismiss: () -> Unit) {
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(u.username, fontWeight = FontWeight.Medium)
+                                Text(u.username, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                
+                                if (isFollowersList) {
+                                    IconButton(onClick = { onToggleFollow(u) }) {
+                                        Icon(
+                                            imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
+                                            contentDescription = if (isFollowing) "Following" else "Follow",
+                                            tint = if (isFollowing) Color.Green else MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

@@ -46,13 +46,15 @@ fun WritePartScreen(
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
 
+    // Track last saved state to avoid showing "Save as Draft" dialog after publishing/saving
+    var lastSavedTitle by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
+    var lastSavedContent by remember(partToEdit) { mutableStateOf(partToEdit?.content ?: "") }
+
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
 
-    val hasChanges = remember(title, content, partToEdit) {
-        val originalTitle = partToEdit?.title ?: ""
-        val originalContent = partToEdit?.content ?: ""
-        title != originalTitle || content != originalContent
+    val hasChanges = remember(title, content, lastSavedTitle, lastSavedContent) {
+        title != lastSavedTitle || content != lastSavedContent
     }
 
     // Save as draft and go back
@@ -117,10 +119,14 @@ fun WritePartScreen(
                                 if (isPublished) {
                                     viewModel.updatePartStatus(storyId, partId ?: "", title, content, false)
                                     isPublished = false
+                                    lastSavedTitle = title
+                                    lastSavedContent = content
                                     android.widget.Toast.makeText(context, "Part unpublished", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
                                     viewModel.addPartToStory(storyId, title, content, partId, true)
                                     isPublished = true
+                                    lastSavedTitle = title
+                                    lastSavedContent = content
                                     android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }
