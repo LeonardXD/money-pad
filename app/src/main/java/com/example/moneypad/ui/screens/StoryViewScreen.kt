@@ -58,7 +58,9 @@ fun StoryViewScreen(
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
     val isLiked by viewModel.isStoryLiked(storyId).collectAsState(initial = false)
+    val isInLibrary by viewModel.isStoryInLibrary(storyId).collectAsState(initial = false)
     
+    val context = androidx.compose.ui.platform.LocalContext.current
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     LaunchedEffect(storyId) {
@@ -150,15 +152,33 @@ fun StoryViewScreen(
                             }
 
                             IconButton(
-                                onClick = { /* TODO: Download */ },
+                                onClick = {
+                                    if (isInLibrary) {
+                                        viewModel.removeStoryFromLibrary(storyId)
+                                        android.widget.Toast.makeText(context, "Removed from library", android.widget.Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        viewModel.downloadStoryToLibrary(storyId) { result ->
+                                            result.onSuccess {
+                                                android.widget.Toast.makeText(context, "Downloaded to library", android.widget.Toast.LENGTH_SHORT).show()
+                                            }.onFailure { error ->
+                                                android.widget.Toast.makeText(context, error.message ?: "Failed to download", android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }
+                                },
                                 modifier = Modifier
                                     .size(50.dp)
                                     .background(
-                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        if (isInLibrary) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        else MaterialTheme.colorScheme.surfaceVariant,
                                         CircleShape
                                     )
                             ) {
-                                Icon(Icons.Default.Download, contentDescription = "Download")
+                                Icon(
+                                    Icons.Default.Download,
+                                    contentDescription = "Download",
+                                    tint = if (isInLibrary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }

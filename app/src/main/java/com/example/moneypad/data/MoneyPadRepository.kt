@@ -333,7 +333,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             )
         )
         if (isPublished) {
-            dao.updateStoryLastUpdated(storyId, now)
+            dao.publishStory(storyId, now)
         }
     }
 
@@ -351,12 +351,24 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             )
         )
         if (isPublished) {
-            dao.updateStoryLastUpdated(storyId, now)
+            dao.publishStory(storyId, now)
+        } else {
+            val publishedCount = dao.getPublishedPartCount(storyId)
+            if (publishedCount == 0) {
+                dao.unpublishStory(storyId, now)
+            }
         }
     }
 
     suspend fun deleteStoryPart(partId: String) {
-        dao.deleteStoryPart(partId)
+        val part = dao.getStoryPartById(partId)
+        if (part != null) {
+            dao.deleteStoryPart(partId)
+            val publishedCount = dao.getPublishedPartCount(part.storyId)
+            if (publishedCount == 0) {
+                dao.unpublishStory(part.storyId, System.currentTimeMillis())
+            }
+        }
     }
 
     fun getPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPartsForStory(storyId)
@@ -399,9 +411,19 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         )
     }
 
-    suspend fun withdraw(amount: Double, method: String, accountInfo: String): Boolean {
-        if (amount < 0.10) return false
-        dao.deductBalance(currentUserId, amount)
+    suspend fun withdraw(amount: Double, method: String, accountInfo: String, source: String = ""): Boolean {
+        if (amount <= 0) return false
+        
+        if (source == "AUTHOR") {
+            dao.deductAuthorIncome(currentUserId, amount)
+        } else if (source == "READER") {
+            // For readers, amount is in PHP, coins = amount * 100
+            val coinsToDeduct = (amount * 100).toInt()
+            dao.deductReaderCoins(currentUserId, coinsToDeduct)
+        } else {
+            dao.deductBalance(currentUserId, amount)
+        }
+        
         dao.insertTransaction(
             Transaction(
                 id = UUID.randomUUID().toString(),
@@ -497,4 +519,23 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getAnnotationsForPart(partId: String): Flow<List<PartAnnotation>> =
         dao.getAnnotationsForPart(partId)
+
+    // ── Library ───────────────────────────────────────────────────────────────
+
+    suspend fun addStoryToLibrary(storyId: String): Result<Unit> {
+        val count = dao.getLibraryStoryCount(currentUserId).firstOrNull() ?: 0
+        if (count >= 15) {
+            return Result.failure(Exception("Library is full. Please remove a story before downloading again."))
+        }
+        dao.insertLibraryStory(LibraryStory(currentUserId, storyId))
+        return Result.success(Unit)
+    }
+
+    suspend fun removeStoryFromLibrary(storyId: String) {
+        dao.deleteLibraryStory(currentUserId, storyId)
+    }
+
+    fun getLibraryStories(): Flow<List<Story>> = dao.getLibraryStories(currentUserId)
+
+    fun isStoryInLibrary(storyId: String): Flow<Boolean> = dao.isStoryInLibrary(currentUserId, storyId)
 }

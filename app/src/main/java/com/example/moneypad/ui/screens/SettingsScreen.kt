@@ -64,7 +64,6 @@ fun SettingsScreen(
                 item { ProfileInfoSection(u, viewModel) }
                 item { PasswordSection(viewModel) }
                 item { AppearanceSection(isDarkTheme, themeViewModel) }
-                item { InviteSection(u) }
                 item { DownloadsSection() }
                 item { LogoutSection(viewModel, onLogout) }
             }
@@ -345,87 +344,6 @@ private fun AppearanceSection(isDarkTheme: Boolean, themeViewModel: ThemeViewMod
                 checked = isDarkTheme,
                 onCheckedChange = { themeViewModel.toggleTheme() }
             )
-        }
-    }
-}
-
-// ── Invite / Referral ─────────────────────────────────────────────────────────
-
-@Composable
-private fun InviteSection(user: User) {
-    val clipboard = LocalClipboardManager.current
-    val appLink = "https://moneypad.app/join/${user.username}"
-
-    val msg1 = "Do you like to earn while writing and reading stories at the same time? Join me now on $appLink"
-    val msg2 = "Hey! I found an app that makes you earn while writing and reading stories. Join my earning journey on $appLink"
-
-    SettingsCard(title = "Invite Users", icon = Icons.Default.PersonAdd) {
-        Text(
-            "Share to Earn More! Invite users to maximize your earnings.",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "You'll get a 10% share of their earnings whenever they withdraw.",
-            fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Your referral: @${user.username}",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(
-                onClick = { clipboard.setText(AnnotatedString(user.username)) },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy username", tint = MaterialTheme.colorScheme.primary)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Total invites: ${user.referralCount}",
-            fontSize = 13.sp,
-            color = Color.Gray
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = { clipboard.setText(AnnotatedString(msg1)) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Copy Invite Message 1", fontSize = 13.sp)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedButton(
-            onClick = { clipboard.setText(AnnotatedString(msg2)) },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Copy Invite Message 2", fontSize = 13.sp)
         }
     }
 }

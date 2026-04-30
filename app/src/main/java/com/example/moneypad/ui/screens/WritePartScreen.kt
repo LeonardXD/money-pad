@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -41,7 +42,7 @@ fun WritePartScreen(
     val partToEdit = parts.find { it.id == partId }
 
     var title by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
-    var content by remember(partToEdit) { mutableStateOf(partToEdit?.content ?: "") }
+    var content by remember(partToEdit) { mutableStateOf(TextFieldValue(partToEdit?.content ?: "")) }
     var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
@@ -53,19 +54,19 @@ fun WritePartScreen(
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
 
-    val hasChanges = remember(title, content, lastSavedTitle, lastSavedContent) {
-        title != lastSavedTitle || content != lastSavedContent
+    val hasChanges = remember(title, content.text, lastSavedTitle, lastSavedContent) {
+        title != lastSavedTitle || content.text != lastSavedContent
     }
 
     // Save as draft and go back
     fun saveDraftAndExit() {
-        viewModel.savePartAsDraft(storyId, title, content, partId)
+        viewModel.savePartAsDraft(storyId, title, content.text, partId)
         onNavigateBack()
     }
 
     // Intercept the system back gesture/button
     BackHandler {
-        if (hasChanges && (title.isNotBlank() || content.isNotBlank())) {
+        if (hasChanges && (title.isNotBlank() || content.text.isNotBlank())) {
             showSaveDraftDialog = true
         } else {
             onNavigateBack()
@@ -97,13 +98,37 @@ fun WritePartScreen(
         )
     }
 
+    fun applyFormat(tagStart: String, tagEnd: String = tagStart) {
+        val text = content.text
+        val selection = content.selection
+        
+        if (!selection.collapsed) {
+            val before = text.substring(0, selection.start)
+            val selected = text.substring(selection.start, selection.end)
+            val after = text.substring(selection.end)
+            val newText = "$before$tagStart$selected$tagEnd$after"
+            content = content.copy(
+                text = newText,
+                selection = androidx.compose.ui.text.TextRange(selection.end + tagStart.length + tagEnd.length)
+            )
+        } else {
+            val before = text.substring(0, selection.start)
+            val after = text.substring(selection.end)
+            val newText = "$before$tagStart$tagEnd$after"
+            content = content.copy(
+                text = newText,
+                selection = androidx.compose.ui.text.TextRange(selection.start + tagStart.length)
+            )
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (hasChanges && (title.isNotBlank() || content.isNotBlank())) {
+                        if (hasChanges && (title.isNotBlank() || content.text.isNotBlank())) {
                             showSaveDraftDialog = true
                         } else {
                             onNavigateBack()
@@ -115,18 +140,18 @@ fun WritePartScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && content.isNotBlank()) {
+                            if (title.isNotBlank() && content.text.isNotBlank()) {
                                 if (isPublished) {
-                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content, false)
+                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content.text, false)
                                     isPublished = false
                                     lastSavedTitle = title
-                                    lastSavedContent = content
+                                    lastSavedContent = content.text
                                     android.widget.Toast.makeText(context, "Part unpublished", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
-                                    viewModel.addPartToStory(storyId, title, content, partId, true)
+                                    viewModel.addPartToStory(storyId, title, content.text, partId, true)
                                     isPublished = true
                                     lastSavedTitle = title
-                                    lastSavedContent = content
+                                    lastSavedContent = content.text
                                     android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -159,7 +184,6 @@ fun WritePartScreen(
                                 onClick = { 
                                     expanded = false 
                                     if (partId != null) {
-                                        // Use the root navController if available to find global routes like "read"
                                         navController?.navigate("read/$storyId/$partId")
                                     }
                                 }
@@ -198,19 +222,19 @@ fun WritePartScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { applyFormat("<h1>", "</h1>") }) {
                         Icon(Icons.Default.FormatSize, contentDescription = "Font Size")
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { applyFormat("<b>", "</b>") }) {
                         Icon(Icons.Default.FormatBold, contentDescription = "Bold")
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { applyFormat("<i>", "</i>") }) {
                         Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { applyFormat("<u>", "</u>") }) {
                         Icon(Icons.Default.FormatUnderlined, contentDescription = "Underline")
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { applyFormat("<mark>", "</mark>") }) {
                         Icon(Icons.Default.Highlight, contentDescription = "Highlight")
                     }
                     IconButton(onClick = { }) {

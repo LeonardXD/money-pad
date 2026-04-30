@@ -69,6 +69,9 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             composable(BottomNavItem.Explore.route) {
                 ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it })
             }
+            composable(BottomNavItem.Library.route) {
+                LibraryNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
+            }
             composable(BottomNavItem.Write.route) {
                 WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
             }

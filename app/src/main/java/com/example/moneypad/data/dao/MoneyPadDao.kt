@@ -34,6 +34,12 @@ interface MoneyPadDao {
     @Query("UPDATE users SET balance = balance - :amount WHERE id = :userId")
     suspend fun deductBalance(userId: String, amount: Double)
 
+    @Query("UPDATE users SET authorIncome = authorIncome - :amount WHERE id = :userId")
+    suspend fun deductAuthorIncome(userId: String, amount: Double)
+
+    @Query("UPDATE users SET readerCoins = readerCoins - :amount WHERE id = :userId")
+    suspend fun deductReaderCoins(userId: String, amount: Int)
+
     @Query("SELECT * FROM users WHERE username = :username")
     suspend fun getUserByUsername(username: String): User?
 
@@ -172,6 +178,12 @@ interface MoneyPadDao {
     @Query("SELECT * FROM story_parts WHERE storyId = :storyId ORDER BY `order` ASC")
     fun getPartsForStory(storyId: String): Flow<List<StoryPart>>
 
+    @Query("SELECT * FROM story_parts WHERE id = :partId")
+    suspend fun getStoryPartById(partId: String): StoryPart?
+
+    @Query("SELECT COUNT(*) FROM story_parts WHERE storyId = :storyId AND isPublished = 1")
+    suspend fun getPublishedPartCount(storyId: String): Int
+
     @Query("SELECT * FROM story_parts WHERE storyId = :storyId AND isPublished = 1 ORDER BY `order` ASC")
     fun getPublishedPartsForStory(storyId: String): Flow<List<StoryPart>>
 
@@ -240,4 +252,20 @@ interface MoneyPadDao {
 
     @Query("SELECT COUNT(*) FROM part_annotations WHERE partId = :partId AND selectedText = :selectedText AND startIndex = :startIndex AND endIndex = :endIndex AND type = 'LIKE'")
     fun getReactionCountForText(partId: String, selectedText: String, startIndex: Int, endIndex: Int): Flow<Int>
+
+    // ── Library ───────────────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLibraryStory(libraryStory: com.example.moneypad.data.model.LibraryStory)
+
+    @Query("DELETE FROM library_stories WHERE userId = :userId AND storyId = :storyId")
+    suspend fun deleteLibraryStory(userId: String, storyId: String)
+
+    @Query("SELECT * FROM stories WHERE id IN (SELECT storyId FROM library_stories WHERE userId = :userId ORDER BY downloadedAt DESC)")
+    fun getLibraryStories(userId: String): Flow<List<Story>>
+
+    @Query("SELECT COUNT(*) FROM library_stories WHERE userId = :userId")
+    fun getLibraryStoryCount(userId: String): Flow<Int>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM library_stories WHERE userId = :userId AND storyId = :storyId)")
+    fun isStoryInLibrary(userId: String, storyId: String): Flow<Boolean>
 }

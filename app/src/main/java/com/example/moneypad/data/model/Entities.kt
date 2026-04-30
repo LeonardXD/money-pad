@@ -126,3 +126,10 @@ data class PartAnnotation(
     val content: String? = null, // Used for comments
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "library_stories", primaryKeys = ["userId", "storyId"])
+data class LibraryStory(
+    val userId: String,
+    val storyId: String,
+    val downloadedAt: Long = System.currentTimeMillis()
+)

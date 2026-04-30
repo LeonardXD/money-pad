@@ -138,6 +138,9 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         viewModelScope.launch {
             val currentPartsCount = _currentParts.value.size
             repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1, partId, isPublished)
+            if (isPublished) {
+                getStoryById(storyId)
+            }
         }
     }
 
@@ -162,6 +165,7 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
             val part = _currentParts.value.find { it.id == partId }
             val order = part?.order ?: (_currentParts.value.size + 1)
             repository.updateStoryPart(partId, storyId, title, content, order, isPublished)
+            getStoryById(storyId)
         }
     }
 
@@ -236,4 +240,31 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
             getAnnotationsForPart(partId)
         }
     }
+
+    // ── Library ───────────────────────────────────────────────────────────────
+
+    val libraryStories = repository.getLibraryStories().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun downloadStoryToLibrary(storyId: String, onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.addStoryToLibrary(storyId)
+            onResult(result)
+        }
+    }
+
+    fun removeStoryFromLibrary(storyId: String) {
+        viewModelScope.launch {
+            repository.removeStoryFromLibrary(storyId)
+        }
+    }
+
+    fun isStoryInLibrary(storyId: String) = repository.isStoryInLibrary(storyId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 }
