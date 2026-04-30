@@ -99,6 +99,12 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
+    fun earnReaderCoins(amount: Int) {
+        viewModelScope.launch {
+            repository.earnReaderCoins(amount)
+        }
+    }
+
     fun addReview(storyId: String, rating: Int, comment: String) {
         viewModelScope.launch {
             repository.addReview(storyId, rating, comment)

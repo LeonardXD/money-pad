@@ -134,6 +134,12 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         }
     }
 
+    suspend fun earnReaderCoins(amount: Int) {
+        if (currentUserId.isNotEmpty()) {
+            dao.updateReaderCoins(currentUserId, amount)
+        }
+    }
+
     // ── Settings ──────────────────────────────────────────────────────────────
 
     /**

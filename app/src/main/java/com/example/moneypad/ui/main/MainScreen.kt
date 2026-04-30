@@ -265,7 +265,20 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
                 onNavigateBack = { writeNavController.popBackStack() },
                 onPartSaved = { writeNavController.popBackStack() },
                 viewModel = storyViewModel,
-                navController = rootNavController
+                navController = writeNavController
+            )
+        }
+        composable("read/{storyId}/{partId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            val partId = backStackEntry.arguments?.getString("partId") ?: ""
+            ReadPartScreen(
+                storyId = storyId,
+                partId = partId,
+                onNavigateBack = { writeNavController.popBackStack() },
+                onNavigateToPart = { id -> writeNavController.navigate("read/$storyId/$id") },
+                viewModel = storyViewModel,
+                isPreview = true
             )
         }
     }

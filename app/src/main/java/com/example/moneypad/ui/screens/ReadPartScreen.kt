@@ -30,6 +30,8 @@ import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 
+import com.example.moneypad.utils.HtmlConverter.parseHtmlToAnnotatedString
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadPartScreen(
@@ -37,7 +39,8 @@ fun ReadPartScreen(
     partId: String,
     onNavigateBack: () -> Unit,
     onNavigateToPart: (String) -> Unit,
-    viewModel: StoryViewModel
+    viewModel: StoryViewModel,
+    isPreview: Boolean = false
 ) {
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
@@ -77,15 +80,20 @@ fun ReadPartScreen(
 
     LaunchedEffect(storyId, partId) {
         viewModel.getStoryById(storyId)
-        viewModel.recordRead(storyId)
-        viewModel.recordPartRead(storyId, partId)
+        if (!isPreview) {
+            viewModel.recordRead(storyId)
+            viewModel.recordPartRead(storyId, partId)
+        }
         viewModel.getAnnotationsForPart(partId)
     }
     
     LaunchedEffect(parts) {
         val part = parts.find { it.id == partId }
-        if (part != null && textFieldValue.text != part.content) {
-            textFieldValue = TextFieldValue(part.content)
+        if (part != null) {
+            val parsedContent = part.content.parseHtmlToAnnotatedString()
+            if (textFieldValue.annotatedString != parsedContent) {
+                textFieldValue = TextFieldValue(parsedContent)
+            }
         }
     }
 
@@ -93,6 +101,34 @@ fun ReadPartScreen(
     val currentIndex = parts.indexOf(part)
     val prevPart = if (currentIndex > 0) parts[currentIndex - 1] else null
     val nextPart = if (currentIndex in 0 until parts.size - 1) parts[currentIndex + 1] else null
+
+    val scrollState = rememberScrollState()
+
+    // Earnings Feature
+    var earnedCoins by remember { mutableIntStateOf(0) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var lastScrollTime by remember { mutableLongStateOf(0L) }
+
+    if (!isPreview) {
+        LaunchedEffect(scrollState.value) {
+            lastScrollTime = System.currentTimeMillis()
+        }
+
+        LaunchedEffect(Unit) {
+            while (true) {
+                if (System.currentTimeMillis() - lastScrollTime < 1000L) {
+                    // 15 seconds to fill. 15s * 10 ticks/s = 150 ticks.
+                    progress += (1f / 150f)
+                    if (progress >= 1f) {
+                        earnedCoins += 1
+                        viewModel.earnReaderCoins(1)
+                        progress = 0f
+                    }
+                }
+                kotlinx.coroutines.delay(100)
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalTextToolbar provides emptyToolbar) {
         Scaffold(
@@ -124,7 +160,7 @@ fun ReadPartScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 16.dp)
-                                    .verticalScroll(rememberScrollState())
+                                    .verticalScroll(scrollState)
                             ) {
                                 Text(
                                     text = currentPart.title,
@@ -249,6 +285,35 @@ fun ReadPartScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(120.dp))
+                            }
+                            
+                            // Earnings UI Overlay
+                            if (!isPreview) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(end = 16.dp, top = 32.dp),
+                                    contentAlignment = Alignment.TopEnd
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.size(50.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            progress = { progress },
+                                            modifier = Modifier.fillMaxSize(),
+                                            color = Color(0xFFFFD700),
+                                            strokeWidth = 4.dp,
+                                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        Text(
+                                            text = "+$earnedCoins",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                             }
 
                             // Selection Action Menu

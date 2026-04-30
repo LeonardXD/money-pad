@@ -26,6 +26,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
+import com.example.moneypad.utils.HtmlConverter.parseHtmlToAnnotatedString
+import com.example.moneypad.utils.HtmlConverter.toHtmlString
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,10 +49,13 @@ fun WritePartScreen(
     val partToEdit = parts.find { it.id == partId }
 
     var title by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
-    var content by remember(partToEdit) { mutableStateOf(TextFieldValue(partToEdit?.content ?: "")) }
+    var content by remember(partToEdit) { 
+        mutableStateOf(TextFieldValue(annotatedString = (partToEdit?.content ?: "").parseHtmlToAnnotatedString())) 
+    }
     var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
+    var showFontMenu by remember { mutableStateOf(false) }
 
     // Track last saved state to avoid showing "Save as Draft" dialog after publishing/saving
     var lastSavedTitle by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
@@ -54,19 +64,19 @@ fun WritePartScreen(
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
 
-    val hasChanges = remember(title, content.text, lastSavedTitle, lastSavedContent) {
-        title != lastSavedTitle || content.text != lastSavedContent
+    val hasChanges = remember(title, content.annotatedString, lastSavedTitle, lastSavedContent) {
+        title != lastSavedTitle || content.annotatedString.toHtmlString() != lastSavedContent
     }
 
     // Save as draft and go back
     fun saveDraftAndExit() {
-        viewModel.savePartAsDraft(storyId, title, content.text, partId)
+        viewModel.savePartAsDraft(storyId, title, content.annotatedString.toHtmlString(), partId)
         onNavigateBack()
     }
 
     // Intercept the system back gesture/button
     BackHandler {
-        if (hasChanges && (title.isNotBlank() || content.text.isNotBlank())) {
+        if (hasChanges && (title.isNotBlank() || content.annotatedString.text.isNotBlank())) {
             showSaveDraftDialog = true
         } else {
             onNavigateBack()
@@ -98,27 +108,59 @@ fun WritePartScreen(
         )
     }
 
-    fun applyFormat(tagStart: String, tagEnd: String = tagStart) {
-        val text = content.text
+    var activeStyles by remember { mutableStateOf(setOf<SpanStyle>()) }
+    var overrideStyles by remember { mutableStateOf(false) }
+
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val cursor = content.selection.start
+            val imageText = "\n[Image: $uri]\n"
+            
+            val builder = AnnotatedString.Builder()
+            builder.append(content.annotatedString.subSequence(0, cursor))
+            builder.append(imageText)
+            builder.append(content.annotatedString.subSequence(content.selection.end, content.annotatedString.length))
+            
+            content = content.copy(
+                annotatedString = builder.toAnnotatedString(),
+                selection = androidx.compose.ui.text.TextRange(cursor + imageText.length)
+            )
+        }
+    }
+
+    fun toggleStyle(style: SpanStyle) {
         val selection = content.selection
-        
         if (!selection.collapsed) {
-            val before = text.substring(0, selection.start)
-            val selected = text.substring(selection.start, selection.end)
-            val after = text.substring(selection.end)
-            val newText = "$before$tagStart$selected$tagEnd$after"
-            content = content.copy(
-                text = newText,
-                selection = androidx.compose.ui.text.TextRange(selection.end + tagStart.length + tagEnd.length)
-            )
+            val newAnnotatedString = AnnotatedString.Builder(content.annotatedString).apply {
+                addStyle(style, selection.start, selection.end)
+            }.toAnnotatedString()
+            content = content.copy(annotatedString = newAnnotatedString)
         } else {
-            val before = text.substring(0, selection.start)
-            val after = text.substring(selection.end)
-            val newText = "$before$tagStart$tagEnd$after"
-            content = content.copy(
-                text = newText,
-                selection = androidx.compose.ui.text.TextRange(selection.start + tagStart.length)
-            )
+            activeStyles = if (activeStyles.contains(style)) {
+                activeStyles - style
+            } else {
+                activeStyles + style
+            }
+            overrideStyles = true
+            val status = if (activeStyles.contains(style)) "activated" else "deactivated"
+            android.widget.Toast.makeText(context, "Format $status for next typing", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun applyFont(fontFamily: FontFamily) {
+        val style = SpanStyle(fontFamily = fontFamily)
+        val selection = content.selection
+        if (!selection.collapsed) {
+            val newAnnotatedString = AnnotatedString.Builder(content.annotatedString).apply {
+                addStyle(style, selection.start, selection.end)
+            }.toAnnotatedString()
+            content = content.copy(annotatedString = newAnnotatedString)
+        } else {
+            activeStyles = activeStyles.filter { it.fontFamily == null }.toSet() + style
+            overrideStyles = true
+            android.widget.Toast.makeText(context, "Font activated for next typing", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -140,18 +182,18 @@ fun WritePartScreen(
                 actions = {
                     Button(
                         onClick = {
-                            if (title.isNotBlank() && content.text.isNotBlank()) {
+                            if (title.isNotBlank() && content.annotatedString.text.isNotBlank()) {
                                 if (isPublished) {
-                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content.text, false)
+                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content.annotatedString.toHtmlString(), false)
                                     isPublished = false
                                     lastSavedTitle = title
-                                    lastSavedContent = content.text
+                                    lastSavedContent = content.annotatedString.toHtmlString()
                                     android.widget.Toast.makeText(context, "Part unpublished", android.widget.Toast.LENGTH_SHORT).show()
                                 } else {
-                                    viewModel.addPartToStory(storyId, title, content.text, partId, true)
+                                    viewModel.addPartToStory(storyId, title, content.annotatedString.toHtmlString(), partId, true)
                                     isPublished = true
                                     lastSavedTitle = title
-                                    lastSavedContent = content.text
+                                    lastSavedContent = content.annotatedString.toHtmlString()
                                     android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -222,25 +264,95 @@ fun WritePartScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { applyFormat("<h1>", "</h1>") }) {
-                        Icon(Icons.Default.FormatSize, contentDescription = "Font Size")
+                    Box {
+                        IconButton(onClick = { showFontMenu = true }) {
+                            Icon(Icons.Default.FormatSize, contentDescription = "Font Style")
+                        }
+                        DropdownMenu(
+                            expanded = showFontMenu,
+                            onDismissRequest = { showFontMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Default") }, 
+                                onClick = { showFontMenu = false; applyFont(FontFamily.Default) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Serif") }, 
+                                onClick = { showFontMenu = false; applyFont(FontFamily.Serif) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Monospace") }, 
+                                onClick = { showFontMenu = false; applyFont(FontFamily.Monospace) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Cursive") }, 
+                                onClick = { showFontMenu = false; applyFont(FontFamily.Cursive) }
+                            )
+                        }
                     }
-                    IconButton(onClick = { applyFormat("<b>", "</b>") }) {
+                    
+                    val isBold = activeStyles.any { it.fontWeight == FontWeight.Bold }
+                    IconToggleButton(
+                        checked = isBold, 
+                        onCheckedChange = { toggleStyle(SpanStyle(fontWeight = FontWeight.Bold)) },
+                        colors = IconButtonDefaults.iconToggleButtonColors(
+                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
                         Icon(Icons.Default.FormatBold, contentDescription = "Bold")
                     }
-                    IconButton(onClick = { applyFormat("<i>", "</i>") }) {
+                    
+                    val isItalic = activeStyles.any { it.fontStyle == FontStyle.Italic }
+                    IconToggleButton(
+                        checked = isItalic, 
+                        onCheckedChange = { toggleStyle(SpanStyle(fontStyle = FontStyle.Italic)) },
+                        colors = IconButtonDefaults.iconToggleButtonColors(
+                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
                         Icon(Icons.Default.FormatItalic, contentDescription = "Italic")
                     }
-                    IconButton(onClick = { applyFormat("<u>", "</u>") }) {
+                    
+                    val isUnderlined = activeStyles.any { it.textDecoration == TextDecoration.Underline }
+                    IconToggleButton(
+                        checked = isUnderlined, 
+                        onCheckedChange = { toggleStyle(SpanStyle(textDecoration = TextDecoration.Underline)) },
+                        colors = IconButtonDefaults.iconToggleButtonColors(
+                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
                         Icon(Icons.Default.FormatUnderlined, contentDescription = "Underline")
                     }
-                    IconButton(onClick = { applyFormat("<mark>", "</mark>") }) {
+                    
+                    val isHighlighted = activeStyles.any { it.background == androidx.compose.ui.graphics.Color.Yellow }
+                    IconToggleButton(
+                        checked = isHighlighted, 
+                        onCheckedChange = { toggleStyle(SpanStyle(background = androidx.compose.ui.graphics.Color.Yellow)) },
+                        colors = IconButtonDefaults.iconToggleButtonColors(
+                            checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
                         Icon(Icons.Default.Highlight, contentDescription = "Highlight")
                     }
-                    IconButton(onClick = { }) {
+                    
+                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
                         Icon(Icons.Default.Image, contentDescription = "Inline Image")
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = { 
+                        val cursor = content.selection.start
+                        val builder = AnnotatedString.Builder()
+                        builder.append(content.annotatedString.subSequence(0, cursor))
+                        builder.append("♡")
+                        builder.append(content.annotatedString.subSequence(content.selection.end, content.annotatedString.length))
+                        content = content.copy(
+                            annotatedString = builder.toAnnotatedString(),
+                            selection = androidx.compose.ui.text.TextRange(cursor + 1)
+                        )
+                    }) {
                         Icon(Icons.Default.FavoriteBorder, contentDescription = "Like")
                     }
                 }
@@ -319,7 +431,60 @@ fun WritePartScreen(
             // Body Writing Area
             TextField(
                 value = content,
-                onValueChange = { content = it },
+                onValueChange = { newValue ->
+                    val oldText = content.text
+                    val newText = newValue.text
+                    
+                    if (oldText == newText) {
+                        content = newValue.copy(annotatedString = content.annotatedString)
+                        if (content.selection != newValue.selection) {
+                            if (overrideStyles) {
+                                overrideStyles = false
+                            } else {
+                                if (newValue.selection.collapsed) {
+                                    val cursor = newValue.selection.start
+                                    if (cursor > 0) {
+                                        val stylesAtCursor = content.annotatedString.spanStyles
+                                            .filter { it.start < cursor && it.end >= cursor }
+                                            .map { it.item }
+                                            .toSet()
+                                        activeStyles = stylesAtCursor
+                                    } else {
+                                        activeStyles = emptySet()
+                                    }
+                                } else {
+                                    val start = newValue.selection.start
+                                    val end = newValue.selection.end
+                                    if (start < end) {
+                                        val stylesAtSelection = content.annotatedString.spanStyles
+                                            .filter { it.start < end && it.end > start }
+                                            .map { it.item }
+                                            .toSet()
+                                        activeStyles = stylesAtSelection
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        val diff = newText.length - oldText.length
+                        if (diff > 0 && activeStyles.isNotEmpty()) {
+                            val cursor = newValue.selection.start
+                            val insertStart = cursor - diff
+                            if (insertStart >= 0 && insertStart <= newText.length) {
+                                val builder = AnnotatedString.Builder(newValue.annotatedString)
+                                activeStyles.forEach { style ->
+                                    builder.addStyle(style, insertStart, cursor)
+                                }
+                                content = newValue.copy(annotatedString = builder.toAnnotatedString())
+                            } else {
+                                content = newValue
+                            }
+                        } else {
+                            content = newValue
+                        }
+                        overrideStyles = false
+                    }
+                },
                 placeholder = {
                     Text(
                         "Tap here to start writing...",
