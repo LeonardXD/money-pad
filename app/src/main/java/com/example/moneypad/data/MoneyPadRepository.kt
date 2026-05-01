@@ -446,7 +446,12 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.getTransactionsForUser(userId)
 
     fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> =
-        dao.searchStoriesExcludingAuthor(query, genre, currentUserId)
+        dao.searchStoriesExcludingAuthor(query, genre, currentUserId).map { stories ->
+            if (genre == "All") stories else stories.filter { story -> story.hasGenre(genre) }
+        }
+
+    private fun Story.hasGenre(genre: String): Boolean =
+        genres.split(",").map { it.trim() }.any { it.equals(genre, ignoreCase = true) }
 
     fun searchAuthors(query: String): Flow<List<User>> = dao.searchAuthorsExcludingSelf(query, currentUserId)
 

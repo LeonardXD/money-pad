@@ -126,6 +126,7 @@ fun ProfileNavigation(
                     // But we could add it if needed
                     profileNavController.navigate("story_view/$id")
                 },
+                onNavigateToAuthorProfile = { id -> profileNavController.navigate("author_profile/$id") },
                 storyViewModel = storyViewModel,
                 profileViewModel = profileViewModel
             )
@@ -207,6 +208,7 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory,
                 authorId = authorId,
                 onNavigateBack = { exploreNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
+                onNavigateToAuthorProfile = { id -> exploreNavController.navigate("author_profile/$id") },
                 storyViewModel = storyViewModel,
                 profileViewModel = viewModel(factory = factory)
             )

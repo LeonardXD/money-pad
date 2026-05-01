@@ -107,23 +107,16 @@ fun ReadPartScreen(
     // Earnings Feature
     var earnedCoins by remember { mutableIntStateOf(0) }
     var progress by remember { mutableFloatStateOf(0f) }
-    var lastScrollTime by remember { mutableLongStateOf(0L) }
 
     if (!isPreview) {
-        LaunchedEffect(scrollState.value) {
-            lastScrollTime = System.currentTimeMillis()
-        }
-
         LaunchedEffect(Unit) {
             while (true) {
-                if (System.currentTimeMillis() - lastScrollTime < 1000L) {
-                    // 15 seconds to fill. 15s * 10 ticks/s = 150 ticks.
-                    progress += (1f / 150f)
-                    if (progress >= 1f) {
-                        earnedCoins += 1
-                        viewModel.earnReaderCoins(1)
-                        progress = 0f
-                    }
+                // One minute to fill. 60s * 10 ticks/s = 600 ticks.
+                progress += (1f / 600f)
+                if (progress >= 1f) {
+                    earnedCoins += 5
+                    viewModel.earnReaderCoins(5)
+                    progress = 0f
                 }
                 kotlinx.coroutines.delay(100)
             }

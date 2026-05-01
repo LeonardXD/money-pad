@@ -137,7 +137,10 @@ fun ExploreScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                if (authors.isNotEmpty() && searchQuery.isNotBlank()) {
+                val hasAuthorResults = authors.isNotEmpty() && searchQuery.isNotBlank()
+                val isDefaultExplore = searchQuery.isBlank() && selectedGenre == "All"
+
+                if (hasAuthorResults) {
                     item {
                         Text("Authors", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
@@ -146,7 +149,7 @@ fun ExploreScreen(
                     }
                 }
 
-                if (searchQuery.isBlank()) {
+                if (isDefaultExplore) {
                     if (continueReading.isNotEmpty()) {
                         item {
                             Text("Continue Reading", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -187,11 +190,15 @@ fun ExploreScreen(
                     }
                 }
 
-                val currentStoriesList = if (searchQuery.isNotBlank()) stories else updatedStories
+                val currentStoriesList = if (isDefaultExplore) updatedStories else stories
 
                 if (currentStoriesList.isNotEmpty()) {
                     item {
-                        Text(if (searchQuery.isBlank()) "Updated Stories" else "Stories", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            if (isDefaultExplore) "Updated Stories" else "Stories",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     
@@ -216,10 +223,17 @@ fun ExploreScreen(
                     }
                 }
 
-                if (currentStoriesList.isEmpty() && authors.isEmpty()) {
+                if (currentStoriesList.isEmpty() && !hasAuthorResults) {
                     item {
                         Box(modifier = Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("No stories available yet", color = Color.Gray)
+                            Text(
+                                text = when {
+                                    searchQuery.isNotBlank() -> "No stories or authors found"
+                                    selectedGenre != "All" -> "No stories found in $selectedGenre yet"
+                                    else -> "No stories available yet"
+                                },
+                                color = Color.Gray
+                            )
                         }
                     }
                 }

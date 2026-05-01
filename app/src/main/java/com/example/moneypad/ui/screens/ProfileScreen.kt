@@ -247,7 +247,11 @@ fun ProfileScreen(
                     viewModel.updateProfile(newBio, user?.profileImageUrl, user?.coverImageUrl)
                 })
                 1 -> ProfileStoriesTab(viewModel = viewModel)
-                2 -> ConversationTabWithReplies(user?.id ?: "", conversations, viewModel)
+                2 -> ConversationTabWithPosting(
+                    authorId = user?.id ?: "",
+                    conversations = conversations,
+                    profileViewModel = viewModel
+                )
             }
         }
     }

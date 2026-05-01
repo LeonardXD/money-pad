@@ -24,7 +24,6 @@ import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.components.StoryCard
-import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +31,7 @@ fun PublicProfileScreen(
     authorId: String,
     onNavigateBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
+    onNavigateToAuthorProfile: (String) -> Unit,
     storyViewModel: StoryViewModel,
     profileViewModel: ProfileViewModel
 ) {
@@ -39,9 +39,47 @@ fun PublicProfileScreen(
     val authorStories by storyViewModel.getStoriesByAuthor(authorId).collectAsState(initial = emptyList())
     val conversations by profileViewModel.getConversations(authorId).collectAsState(initial = emptyList())
     val isFollowing by profileViewModel.isFollowing(authorId).collectAsState(initial = false)
+    val authorFollowers by profileViewModel.getFollowers(authorId).collectAsState(initial = emptyList())
+    val authorFollowing by profileViewModel.getFollowing(authorId).collectAsState(initial = emptyList())
+    val myFollowing by profileViewModel.following.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("About", "Conversation", "Stories")
+    var showFollowersDialog by remember { mutableStateOf(false) }
+    var showFollowingDialog by remember { mutableStateOf(false) }
+
+    if (showFollowersDialog) {
+        UserListDialog(
+            title = "Followers",
+            users = authorFollowers,
+            onDismiss = { showFollowersDialog = false },
+            onNavigateToPublicProfile = { userId ->
+                showFollowersDialog = false
+                onNavigateToAuthorProfile(userId)
+            },
+            isFollowersList = true,
+            myFollowingList = myFollowing,
+            onToggleFollow = { targetUser ->
+                val isCurrentlyFollowing = myFollowing.any { it.id == targetUser.id }
+                profileViewModel.toggleFollow(targetUser.id, isCurrentlyFollowing)
+            }
+        )
+    }
+
+    if (showFollowingDialog) {
+        UserListDialog(
+            title = "Following",
+            users = authorFollowing,
+            onDismiss = { showFollowingDialog = false },
+            onNavigateToPublicProfile = { userId ->
+                showFollowingDialog = false
+                onNavigateToAuthorProfile(userId)
+            },
+            isFollowersList = false,
+            myFollowingList = myFollowing,
+            onToggleFollow = {}
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -153,9 +191,15 @@ fun PublicProfileScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        StatItem(label = "Followers", value = user.followers.toString())
-                        StatItem(label = "Following", value = user.following.toString())
-                        StatItem(label = "Stories", value = authorStories.size.toString())
+                        Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
+                            StatItem(label = "Followers", value = user.followers.toString())
+                        }
+                        Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
+                            StatItem(label = "Following", value = user.following.toString())
+                        }
+                        Box(modifier = Modifier.clickable { selectedTab = 2 }) {
+                            StatItem(label = "Stories", value = authorStories.size.toString())
+                        }
                     }
                 }
 
