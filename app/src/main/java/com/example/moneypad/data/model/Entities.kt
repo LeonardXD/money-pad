@@ -82,7 +82,8 @@ data class StoryPart(
     val order: Int,
     val publishedAt: Long = System.currentTimeMillis(),
     val isPublished: Boolean = false,
-    val readCount: Int = 0
+    val readCount: Int = 0,
+    val headerImageUrl: String? = null
 )
 
 @Entity(tableName = "transactions")

@@ -328,14 +328,15 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getReadPartsCount(storyId: String): Flow<Int> = dao.getReadPartsCountForStory(currentUserId, storyId)
 
-    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false) {
+    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null) {
         val now = System.currentTimeMillis()
         dao.insertStoryPart(
             StoryPart(
                 id = partId ?: UUID.randomUUID().toString(),
                 storyId = storyId, title = title, content = content, order = order,
                 publishedAt = now,
-                isPublished = isPublished
+                isPublished = isPublished,
+                headerImageUrl = headerImageUrl
             )
         )
         if (isPublished) {
@@ -343,7 +344,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         }
     }
 
-    suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean) {
+    suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean, headerImageUrl: String? = null) {
         val now = System.currentTimeMillis()
         dao.insertStoryPart(
             StoryPart(
@@ -353,7 +354,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 content = content,
                 order = order,
                 publishedAt = now,
-                isPublished = isPublished
+                isPublished = isPublished,
+                headerImageUrl = headerImageUrl
             )
         )
         if (isPublished) {

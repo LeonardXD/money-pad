@@ -57,6 +57,9 @@ fun WritePartScreen(
     var content by remember(partToEdit) {
         mutableStateOf(TextFieldValue(annotatedString = (partToEdit?.content ?: "").parseHtmlToAnnotatedString()))
     }
+    var headerImageUri by remember(partToEdit) { 
+        mutableStateOf<android.net.Uri?>(if (partToEdit?.headerImageUrl != null) android.net.Uri.parse(partToEdit.headerImageUrl) else null) 
+    }
     var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
@@ -132,22 +135,11 @@ fun WritePartScreen(
     var activeStyles by remember { mutableStateOf(setOf<SpanStyle>()) }
     var overrideStyles by remember { mutableStateOf(false) }
 
-    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+    val headerMediaLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
         if (uri != null) {
-            val cursor = content.selection.start
-            val imageText = "\n[Image: $uri]\n"
-
-            val builder = AnnotatedString.Builder()
-            builder.append(content.annotatedString.subSequence(0, cursor))
-            builder.append(imageText)
-            builder.append(content.annotatedString.subSequence(content.selection.end, content.annotatedString.length))
-
-            content = content.copy(
-                annotatedString = builder.toAnnotatedString(),
-                selection = androidx.compose.ui.text.TextRange(cursor + imageText.length)
-            )
+            headerImageUri = uri
         }
     }
 
@@ -165,8 +157,6 @@ fun WritePartScreen(
                 activeStyles + style
             }
             overrideStyles = true
-            val status = if (activeStyles.contains(style)) "activated" else "deactivated"
-            android.widget.Toast.makeText(context, "Format $status for next typing", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -181,7 +171,6 @@ fun WritePartScreen(
         } else {
             activeStyles = activeStyles.filter { it.fontFamily == null }.toSet() + style
             overrideStyles = true
-            android.widget.Toast.makeText(context, "Font activated for next typing", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -277,8 +266,8 @@ fun WritePartScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(bgColor)
-                .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
+                .padding(top = innerPadding.calculateTopPadding())
+                .navigationBarsPadding()
                 .imePadding()
         ) {
             Column(
@@ -296,26 +285,35 @@ fun WritePartScreen(
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             RoundedCornerShape(8.dp)
                         )
-                        .clickable { /* Add Media */ },
+                        .clickable { headerMediaLauncher.launch("image/*") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Icon(
-                                Icons.Default.Image,
-                                contentDescription = "Add Image",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Icon(
-                                Icons.Default.OndemandVideo,
-                                contentDescription = "Add Video",
-                                tint = Color.Gray,
-                                modifier = Modifier.size(32.dp)
-                            )
+                    if (headerImageUri != null) {
+                        coil.compose.AsyncImage(
+                            model = headerImageUri,
+                            contentDescription = "Header Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = "Add Image",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Icon(
+                                    Icons.Default.OndemandVideo,
+                                    contentDescription = "Add Video",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Tap to add Header Media", color = Color.Gray, fontSize = 14.sp)
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Tap to add Header Media", color = Color.Gray, fontSize = 14.sp)
                     }
                 }
 
@@ -449,6 +447,27 @@ fun WritePartScreen(
                                 )
                             }
                             innerTextField()
+                            
+                            textLayoutResult?.let { layout ->
+                                content.annotatedString.getStringAnnotations("IMAGE", 0, content.text.length).forEach { annotation ->
+                                    val start = annotation.start
+                                    if (start < content.text.length) {
+                                        val boundingBox = layout.getBoundingBox(start)
+                                        coil.compose.AsyncImage(
+                                            model = annotation.item,
+                                            contentDescription = "Inline Image",
+                                            modifier = Modifier
+                                                .absoluteOffset(
+                                                    x = 0.dp, 
+                                                    y = with(androidx.compose.ui.platform.LocalDensity.current) { boundingBox.top.toDp() }
+                                                )
+                                                .height(with(androidx.compose.ui.platform.LocalDensity.current) { boundingBox.height.toDp() })
+                                                .fillMaxWidth(),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 )
@@ -462,7 +481,7 @@ fun WritePartScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -541,9 +560,6 @@ fun WritePartScreen(
                         Icon(Icons.Default.Highlight, contentDescription = "Highlight")
                     }
 
-                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.Image, contentDescription = "Inline Image")
-                    }
                     IconButton(onClick = {
                         val cursor = content.selection.start
                         val builder = AnnotatedString.Builder()

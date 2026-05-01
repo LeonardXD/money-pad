@@ -21,11 +21,18 @@ import androidx.core.text.HtmlCompat
 object HtmlConverter {
 
     fun String.parseHtmlToAnnotatedString(): AnnotatedString {
+        val imageRegex = Regex("""\[Image:\s*(.*?)\]""")
+        val uris = mutableListOf<String>()
+
         // Pre-process tags that HtmlCompat doesn't handle natively the way we want
         val preProcessed = this.replace("<mark>", "<span style=\"background-color:#FFFF00;\">")
             .replace("</mark>", "</span>")
             .replace("<h1>", "<span style=\"font-size:1.5em;\"><b>")
             .replace("</h1>", "</b></span>")
+            .replace(imageRegex) { match ->
+                uris.add(match.groupValues[1])
+                "\uFFFC"
+            }
             
         val spanned = HtmlCompat.fromHtml(preProcessed, HtmlCompat.FROM_HTML_MODE_COMPACT)
         val builder = AnnotatedString.Builder(spanned.toString())
@@ -63,6 +70,19 @@ object HtmlConverter {
                 }
             }
         }
+        
+        val rawText = spanned.toString()
+        var uriIndex = 0
+        for (i in rawText.indices) {
+            if (rawText[i] == '\uFFFC') {
+                if (uriIndex < uris.size) {
+                    val uri = uris[uriIndex++]
+                    builder.addStyle(SpanStyle(fontSize = 200.sp, color = androidx.compose.ui.graphics.Color.Transparent), i, i + 1)
+                    builder.addStringAnnotation("IMAGE", uri, i, i + 1)
+                }
+            }
+        }
+        
         return builder.toAnnotatedString()
     }
 
@@ -95,7 +115,7 @@ object HtmlConverter {
                 }
                 spannable.setSpan(TypefaceSpan(familyName), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
-            if (style.fontSize.isSp && style.fontSize.value > 18f) {
+            if (style.fontSize.isSp && style.fontSize.value > 18f && style.fontSize.value < 100f) {
                 spannable.setSpan(RelativeSizeSpan(1.5f), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }

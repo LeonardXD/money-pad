@@ -140,10 +140,10 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     fun getStoriesByGenre(genre: String): Flow<List<Story>> = repository.getStoriesByGenre(genre)
 
-    fun addPartToStory(storyId: String, partTitle: String, content: String, partId: String? = null, isPublished: Boolean = false) {
+    fun addPartToStory(storyId: String, partTitle: String, content: String, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null) {
         viewModelScope.launch {
             val currentPartsCount = _currentParts.value.size
-            repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1, partId, isPublished)
+            repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1, partId, isPublished, headerImageUrl)
             if (isPublished) {
                 getStoryById(storyId)
             }
@@ -151,7 +151,7 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     }
 
     // Saves current part as draft (does the same as addPartToStory — stored but not published)
-    fun savePartAsDraft(storyId: String, partTitle: String, content: String, partId: String? = null) {
+    fun savePartAsDraft(storyId: String, partTitle: String, content: String, partId: String? = null, headerImageUrl: String? = null) {
         if (partTitle.isBlank() && content.isBlank()) return
         viewModelScope.launch {
             val currentPartsCount = _currentParts.value.size
@@ -161,16 +161,17 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
                 content,
                 currentPartsCount + 1,
                 partId,
-                isPublished = false
+                isPublished = false,
+                headerImageUrl = headerImageUrl
             )
         }
     }
 
-    fun updatePartStatus(storyId: String, partId: String, title: String, content: String, isPublished: Boolean) {
+    fun updatePartStatus(storyId: String, partId: String, title: String, content: String, isPublished: Boolean, headerImageUrl: String? = null) {
         viewModelScope.launch {
             val part = _currentParts.value.find { it.id == partId }
             val order = part?.order ?: (_currentParts.value.size + 1)
-            repository.updateStoryPart(partId, storyId, title, content, order, isPublished)
+            repository.updateStoryPart(partId, storyId, title, content, order, isPublished, headerImageUrl)
             getStoryById(storyId)
         }
     }

@@ -12,6 +12,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
+import androidx.navigation.NavType
 import com.example.moneypad.data.AppDatabase
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.ui.ViewModelFactory
@@ -84,15 +87,31 @@ fun MoneyPadApp(factory: ViewModelFactory, themeViewModel: ThemeViewModel, start
                 viewModel = viewModel(factory = factory)
             )
         }
-        composable("signup") {
+        composable(
+            route = "signup?referrer={referrer}",
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "https://moneypad.app/join/{referrer}" },
+                navDeepLink { uriPattern = "moneypad://join/{referrer}" }
+            ),
+            arguments = listOf(navArgument("referrer") { type = NavType.StringType; nullable = true })
+        ) { backStackEntry ->
+            val viewModel: com.example.moneypad.ui.auth.SignupViewModel = viewModel(factory = factory)
+            val referrer = backStackEntry.arguments?.getString("referrer")
+
+            LaunchedEffect(referrer) {
+                if (!referrer.isNullOrBlank() && viewModel.uiState.value.referrerUsername.isBlank()) {
+                    viewModel.onReferrerUsernameChange(referrer)
+                }
+            }
+
             SignupScreen(
                 onNavigateToLogin = { navController.navigate("login") },
                 onSignupSuccess = {
                     navController.navigate("login") {
-                        popUpTo("signup") { inclusive = true }
+                        popUpTo("signup?referrer={referrer}") { inclusive = true }
                     }
                 },
-                viewModel = viewModel(factory = factory)
+                viewModel = viewModel
             )
         }
         composable("onboarding") {

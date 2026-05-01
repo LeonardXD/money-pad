@@ -1,5 +1,6 @@
 package com.example.moneypad.ui.main
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
     var showBottomBar by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(

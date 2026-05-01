@@ -147,24 +147,10 @@ fun ProfileScreen(
                     .padding(16.dp)
             ) {
                 IconButton(
-                    onClick = { showSettings = true },
+                    onClick = { showSettingsScreen = true },
                     modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                }
-
-                DropdownMenu(
-                    expanded = showSettings,
-                    onDismissRequest = { showSettings = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Settings") },
-                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        onClick = {
-                            showSettings = false
-                            showSettingsScreen = true
-                        }
-                    )
                 }
             }
 

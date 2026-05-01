@@ -435,7 +435,14 @@ fun WithdrawDialog(
                 }
                 
                 val currentBalance = if (source == "AUTHOR") authorPhp else readerPhp
-                val minWithdrawal = if (source == "AUTHOR") 59.95 else 50.0
+                val minWithdrawal = if (source == "AUTHOR") 59.95 else {
+                    when (method) {
+                        "PayPal" -> 30.0
+                        "PayMaya" -> 40.0
+                        "GCash" -> 50.0
+                        else -> 50.0
+                    }
+                }
                 
                 Text(
                     text = "Available: ₱${String.format("%.2f", currentBalance)}",
@@ -527,7 +534,14 @@ fun WithdrawDialog(
                 val phoneRegex = "^09\\d{9}$".toRegex()
                 val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".toRegex()
                 val currentBalance = if (source == "AUTHOR") authorPhp else readerPhp
-                val minWithdrawal = if (source == "AUTHOR") 59.95 else 50.0
+                val minWithdrawal = if (source == "AUTHOR") 59.95 else {
+                    when (method) {
+                        "PayPal" -> 30.0
+                        "PayMaya" -> 40.0
+                        "GCash" -> 50.0
+                        else -> 50.0
+                    }
+                }
                 
                 when {
                     amt < minWithdrawal -> errorMessage = "Minimum withdrawal is ₱${String.format("%.2f", minWithdrawal)}"

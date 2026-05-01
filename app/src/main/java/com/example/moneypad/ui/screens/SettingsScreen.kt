@@ -64,7 +64,6 @@ fun SettingsScreen(
                 item { ProfileInfoSection(u, viewModel) }
                 item { PasswordSection(viewModel) }
                 item { AppearanceSection(isDarkTheme, themeViewModel) }
-                item { DownloadsSection() }
                 item { LogoutSection(viewModel, onLogout) }
             }
         } ?: Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -344,38 +343,6 @@ private fun AppearanceSection(isDarkTheme: Boolean, themeViewModel: ThemeViewMod
                 checked = isDarkTheme,
                 onCheckedChange = { themeViewModel.toggleTheme() }
             )
-        }
-    }
-}
-
-// ── Downloads ─────────────────────────────────────────────────────────────────
-
-@Composable
-private fun DownloadsSection() {
-    SettingsCard(title = "Downloads", icon = Icons.Default.Download) {
-        Text(
-            "Downloaded stories for offline reading will appear here.",
-            fontSize = 14.sp,
-            color = Color.Gray
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Default.OfflinePin,
-                    contentDescription = null,
-                    tint = Color.Gray,
-                    modifier = Modifier.size(40.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("No downloads yet", color = Color.Gray, fontSize = 14.sp)
-            }
         }
     }
 }

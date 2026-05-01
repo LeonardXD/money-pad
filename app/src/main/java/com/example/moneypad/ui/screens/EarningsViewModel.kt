@@ -31,7 +31,15 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
     fun withdraw(amount: Double, method: String, accountInfo: String, source: String) {
         viewModelScope.launch {
             if (source == "AUTHOR" && amount < 59.95) return@launch
-            if (source == "READER" && amount < 50.0) return@launch
+            if (source == "READER") {
+                val minWithdrawal = when (method) {
+                    "PayPal" -> 30.0
+                    "PayMaya" -> 40.0
+                    "GCash" -> 50.0
+                    else -> 50.0
+                }
+                if (amount < minWithdrawal) return@launch
+            }
             
             // Deduct balance and create transaction
             repository.withdraw(amount, method, accountInfo)
