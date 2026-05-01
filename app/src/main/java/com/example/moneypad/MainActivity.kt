@@ -20,10 +20,12 @@ import com.example.moneypad.ui.auth.SignupScreen
 import com.example.moneypad.ui.main.MainScreen
 import com.example.moneypad.ui.theme.MoneyPadTheme
 import com.example.moneypad.ui.theme.ThemeViewModel
+import androidx.core.view.WindowCompat
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
