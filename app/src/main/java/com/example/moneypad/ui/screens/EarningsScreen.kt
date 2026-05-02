@@ -614,14 +614,30 @@ fun WithdrawDialog(
             Column {
                 Text("Select Source:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    RadioButton(selected = source == "AUTHOR", onClick = { source = "AUTHOR"; errorMessage = null })
-                    Text("Author", fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    RadioButton(selected = source == "READER", onClick = { source = "READER"; errorMessage = null })
-                    Text("Reader", fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    RadioButton(selected = source == "REFERRAL", onClick = { source = "REFERRAL"; errorMessage = null })
-                    Text("Referral", fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        RadioButton(
+                            selected = source == "AUTHOR",
+                            onClick = { source = "AUTHOR"; errorMessage = null },
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text("Author", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        RadioButton(
+                            selected = source == "READER",
+                            onClick = { source = "READER"; errorMessage = null },
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text("Reader", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1.2f)) {
+                        RadioButton(
+                            selected = source == "REFERRAL",
+                            onClick = { source = "REFERRAL"; errorMessage = null },
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Text("Referral", fontSize = 11.sp, maxLines = 1, softWrap = false)
+                    }
                 }
                 
                 val currentBalance = when(source) {
@@ -631,7 +647,7 @@ fun WithdrawDialog(
                 }
                 
                 val minWithdrawal = when(source) {
-                    "AUTHOR" -> 59.95
+                    "AUTHOR" -> 50.00
                     "READER" -> when (method) {
                         "PayPal" -> 30.0
                         "PayMaya" -> 40.0
@@ -742,7 +758,7 @@ fun WithdrawDialog(
                 }
                 
                 val minWithdrawal = when(source) {
-                    "AUTHOR" -> 59.95
+                    "AUTHOR" -> 50.00
                     "READER" -> when (method) {
                         "PayPal" -> 30.0
                         "PayMaya" -> 40.0

@@ -147,7 +147,7 @@ fun ProfileScreen(
         .getPublishedStoriesForCurrentUser()
         .collectAsState(initial = emptyList())
 
-    LazyColumn(modifier = Modifier.fillMaxSize().imePadding()) {
+    LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         // ── Profile header ─────────────────────────────────────────────────
         item {
             Box(
@@ -184,7 +184,7 @@ fun ProfileScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(16.dp)
+                        .padding(8.dp)
                 ) {
                     IconButton(
                         onClick = { showSettingsScreen = true },
