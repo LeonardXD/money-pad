@@ -189,7 +189,7 @@ fun PublicProfileScreen(
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            if (user.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                            if (user.isVerified || user.id == MoneyPadRepository.OFFICIAL_USER_ID) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 VerifiedIcon()
                             }

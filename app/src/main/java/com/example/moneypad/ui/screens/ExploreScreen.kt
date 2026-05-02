@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,7 +53,13 @@ fun ExploreScreen(
     if (showClaimRewardDialog) {
         AlertDialog(
             onDismissRequest = { showClaimRewardDialog = false },
-            title = { Text("🎁 Welcome Reward!") },
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Redeem, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Welcome Reward!")
+                }
+            },
             text = { Text("Congratulations! Since you were invited by ${user?.referredBy}, you are eligible for a 10 Reader Coins welcome bonus.") },
             confirmButton = {
                 Button(
@@ -334,7 +341,7 @@ fun AuthorSearchItem(author: User, onClick: () -> Unit) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(author.username, fontWeight = FontWeight.Bold)
-                    if (author.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                    if (author.isVerified || author.id == MoneyPadRepository.OFFICIAL_USER_ID) {
                         Spacer(modifier = Modifier.width(4.dp))
                         VerifiedIcon(modifier = Modifier.size(16.dp))
                     }

@@ -543,28 +543,39 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun recordRead(storyId: String) {
         val story = dao.getStoryById(storyId) ?: return
-        
+
         // Only track views and credit income if reader is NOT the author
         if (currentUserId != story.authorId) {
             val lastRead = dao.getLastReadTimestamp(currentUserId, storyId)
             val now = System.currentTimeMillis()
-            
+
             if (lastRead == null) {
                 // First time reading this story - Unique View
                 dao.incrementUniqueViews(storyId)
                 dao.incrementReadCount(storyId)
-                dao.updateAuthorIncome(story.authorId, 0.001)
+
+                // Fetch author's verification status
+                val author = dao.getUser(story.authorId).firstOrNull()
+                val rate = if (author?.isVerified == true) 0.0005 else 0.0003
+                dao.updateAuthorIncome(story.authorId, rate)
             } else if (now - lastRead > 30 * 60 * 1000) {
                 // Came back after at least 30 minutes - Repeated View
                 dao.incrementRepeatedViews(storyId)
                 dao.incrementReadCount(storyId)
-                dao.updateAuthorIncome(story.authorId, 0.001)
+
+                // Fetch author's verification status
+                val author = dao.getUser(story.authorId).firstOrNull()
+                val rate = if (author?.isVerified == true) 0.0005 else 0.0003
+                dao.updateAuthorIncome(story.authorId, rate)
             }
             // If they read another part within 30 minutes, we don't increment anything
             // to avoid over-counting during a single session.
         }
     }
 
+    suspend fun countQualifyingStories(userId: String): Int = dao.countQualifyingStories(userId)
+
+    suspend fun verifyUser(userId: String) = dao.verifyUser(userId)
     suspend fun recordPartRead(storyId: String, partId: String) {
         dao.incrementPartReadCount(partId)
         dao.insertUserReadPart(
@@ -637,15 +648,83 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun sendMessage(authorId: String, message: String, parentId: String? = null) {
         val currentUser = dao.getUser(currentUserId).firstOrNull()
+        val conversationId = UUID.randomUUID().toString()
         dao.insertConversation(
             Conversation(
-                id = UUID.randomUUID().toString(),
+                id = conversationId,
                 authorId = authorId, senderId = currentUserId,
                 senderName = currentUsername, message = message, 
                 senderProfileImageUrl = currentUser?.profileImageUrl,
                 parentId = parentId
             )
         )
+
+        // Notification Logic
+        if (parentId == null) {
+            // New conversation post
+            if (authorId == currentUserId) {
+                // User posted on their own wall - Notify followers
+                val followers = dao.getFollowers(currentUserId).firstOrNull() ?: emptyList()
+                followers.forEach { follower ->
+                    dao.insertNotification(
+                        Notification(
+                            id = UUID.randomUUID().toString(),
+                            userId = follower.id,
+                            type = "CONVERSATION",
+                            actorId = currentUserId,
+                            actorName = currentUsername,
+                            actorProfileImageUrl = currentUser?.profileImageUrl,
+                            storyId = authorId // Target profile ID
+                        )
+                    )
+                }
+            } else {
+                // Someone else posted on the user's wall - Notify wall owner
+                dao.insertNotification(
+                    Notification(
+                        id = UUID.randomUUID().toString(),
+                        userId = authorId,
+                        type = "CONVERSATION",
+                        actorId = currentUserId,
+                        actorName = currentUsername,
+                        actorProfileImageUrl = currentUser?.profileImageUrl,
+                        storyId = authorId // Target profile ID
+                    )
+                )
+            }
+        } else {
+            // Reply to a conversation
+            // 1. Notify the wall owner if the replier is NOT the wall owner
+            if (authorId != currentUserId) {
+                dao.insertNotification(
+                    Notification(
+                        id = UUID.randomUUID().toString(),
+                        userId = authorId,
+                        type = "REPLY",
+                        actorId = currentUserId,
+                        actorName = currentUsername,
+                        actorProfileImageUrl = currentUser?.profileImageUrl,
+                        storyId = authorId // Target profile ID
+                    )
+                )
+            }
+            
+            // 2. Notify the parent message sender if they are not the replier and not the wall owner (who is already notified)
+            val parentConv = dao.getConversationById(parentId)
+            if (parentConv != null && parentConv.senderId != currentUserId && parentConv.senderId != authorId) {
+                dao.insertNotification(
+                    Notification(
+                        id = UUID.randomUUID().toString(),
+                        userId = parentConv.senderId,
+                        type = "REPLY",
+                        actorId = currentUserId,
+                        actorName = currentUsername,
+                        actorProfileImageUrl = currentUser?.profileImageUrl,
+                        storyId = authorId // Target profile ID
+                    )
+                )
+            }
+        }
     }
 
     fun getConversations(authorId: String): Flow<List<Conversation>> =

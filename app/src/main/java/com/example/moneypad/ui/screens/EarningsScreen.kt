@@ -8,10 +8,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Redeem
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -106,12 +111,21 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text(
-                                    "🎁 Welcome Bonus!",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Redeem,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "Welcome Bonus!",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                                 Text(
                                     "Enter the username of the person who invited you to claim 10 Reader Coins!",
                                     fontSize = 13.sp,
@@ -265,38 +279,69 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                             Text("Invite & Earn Rewards", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFFD700))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Get more coins when your friends read!",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            ReferralRewardRow("Reads 5 pages", "15 Coins")
+                            ReferralRewardRow("Reads 15 pages", "30 Coins")
+                            ReferralRewardRow("Reads 25 pages", "50 Coins")
+                            ReferralRewardRow("Reads 40 pages", "80 Coins")
+                            ReferralRewardRow("Reads 80 pages", "120 Coins")
+                            ReferralRewardRow("Reads 110 pages", "180 Coins")
+                        }
                         Text(
-                            "Get more coins when your friends read! 📖✨\n" +
-                            "• 📖 Reads 5 pages = 15 Coins\n" +
-                            "• 📖 Reads 15 pages = 30 Coins\n" +
-                            "• 📖 Reads 25 pages = 50 Coins\n" +
-                            "• 📖 Reads 40 pages = 80 Coins\n" +
-                            "• 📖 Reads 80 pages = 120 Coins\n" +
-                            "• 📖 Reads 110 pages = 180 Coins\n" +
                             "(Total of 4.75 pesos/reader)",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(start = 24.dp)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "💡 Tip: The more they read, the more you earn! Invite your friends now! 🚀",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFFFD700))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    "Tip: The more they read, the more you earn! Invite your friends now!",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Icon(Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Text("✨ Author Referral Bonus ✨", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFFFD700))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Author Referral Bonus", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFFFFD700))
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Earn 5% Commission FOREVER! 💸\n" +
-                            "Get a share every time your invited author withdraws their earnings!",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF4CAF50))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Earn 5% Commission FOREVER! Get a share every time your invited author withdraws their earnings!",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(
@@ -452,7 +497,13 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     if (showClaimRewardDialog) {
         AlertDialog(
             onDismissRequest = { showClaimRewardDialog = false },
-            title = { Text("🎁 Welcome Reward!") },
+            title = { 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Redeem, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Welcome Reward!")
+                }
+            },
             text = { Text("Congratulations! Since you were invited by a friend, you are eligible for a 10 Reader Coins welcome bonus.") },
             confirmButton = {
                 Button(
@@ -470,6 +521,20 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                 }
             }
         )
+    }
+}
+
+@Composable
+fun ReferralRewardRow(label: String, reward: String) {
+    Row(
+        modifier = Modifier.padding(start = 24.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(reward, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }
 

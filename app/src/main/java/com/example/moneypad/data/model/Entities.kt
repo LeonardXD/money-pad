@@ -28,7 +28,8 @@ data class User(
     val isReferralRewardClaimed: Boolean = false,
     val loginTimestamp: Long = 0L,      // epoch ms of last login, used for 7-day session check
     val onboardingStep: Int = 1,
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    val isVerified: Boolean = false
 )
 
 @Entity(tableName = "conversations")

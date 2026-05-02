@@ -126,6 +126,12 @@ interface MoneyPadDao {
     @Query("UPDATE users SET following = following + :delta WHERE id = :userId")
     suspend fun updateFollowing(userId: String, delta: Int)
 
+    @Query("SELECT COUNT(*) FROM stories WHERE authorId = :userId AND isPublished = 1 AND (SELECT COUNT(*) FROM story_parts WHERE storyId = stories.id AND isPublished = 1) >= 10")
+    suspend fun countQualifyingStories(userId: String): Int
+
+    @Query("UPDATE users SET isVerified = 1 WHERE id = :userId")
+    suspend fun verifyUser(userId: String)
+
     // ── Follows ───────────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFollow(follow: Follow)
@@ -147,6 +153,9 @@ interface MoneyPadDao {
     // ── Conversations ─────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertConversation(conversation: Conversation)
+
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun getConversationById(id: String): Conversation?
 
     @Query("SELECT * FROM conversations WHERE authorId = :authorId AND parentId IS NULL ORDER BY timestamp DESC")
     fun getConversationsForAuthor(authorId: String): Flow<List<Conversation>>
@@ -197,10 +206,18 @@ interface MoneyPadDao {
     @Query("UPDATE stories SET isPublished = 0, lastUpdatedAt = :timestamp WHERE id = :storyId")
     suspend fun unpublishStory(storyId: String, timestamp: Long = System.currentTimeMillis())
 
-    @Query("SELECT * FROM stories WHERE (title LIKE '%' || :query || '%' OR genres LIKE '%' || :query || '%') AND (genres LIKE '%' || :genre || '%' OR :genre = 'All') AND isPublished = 1 AND authorId != :excludeAuthorId")
+    @Query("""
+        SELECT s.* FROM stories s
+        JOIN users u ON s.authorId = u.id
+        WHERE (s.title LIKE '%' || :query || '%' OR s.genres LIKE '%' || :query || '%') 
+        AND (s.genres LIKE '%' || :genre || '%' OR :genre = 'All') 
+        AND s.isPublished = 1 
+        AND s.authorId != :excludeAuthorId
+        ORDER BY u.isVerified DESC, s.lastUpdatedAt DESC
+    """)
     fun searchStoriesExcludingAuthor(query: String, genre: String, excludeAuthorId: String): Flow<List<Story>>
 
-    @Query("SELECT * FROM users WHERE username LIKE '%' || :query || '%' AND id != :excludeUserId")
+    @Query("SELECT * FROM users WHERE username LIKE '%' || :query || '%' AND id != :excludeUserId ORDER BY isVerified DESC")
     fun searchAuthorsExcludingSelf(query: String, excludeUserId: String): Flow<List<User>>
 
     @Query("SELECT * FROM stories WHERE genres LIKE '%' || :genre || '%' AND isPublished = 1")

@@ -53,7 +53,11 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
     // source is either "AUTHOR" or "READER"
     fun withdraw(amount: Double, method: String, accountInfo: String, source: String) {
         viewModelScope.launch {
-            if (source == "AUTHOR" && amount < 59.95) return@launch
+            if (source == "AUTHOR") {
+                val user = uiState.value.user
+                val threshold = if (user?.isVerified == true) 20.0 else 59.95
+                if (amount < threshold) return@launch
+            }
             if (source == "READER") {
                 val minWithdrawal = when (method) {
                     "PayPal" -> 30.0

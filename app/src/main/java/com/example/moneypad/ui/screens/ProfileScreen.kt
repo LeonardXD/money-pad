@@ -61,6 +61,7 @@ fun ProfileScreen(
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showFollowersDialog by remember { mutableStateOf(false) }
     var showFollowingDialog by remember { mutableStateOf(false) }
+    var showVerificationScreen by remember { mutableStateOf(false) }
     var messageText by remember { mutableStateOf("") }
 
     if (showSettingsScreen) {
@@ -69,6 +70,14 @@ fun ProfileScreen(
             themeViewModel = themeViewModel,
             onNavigateBack = { showSettingsScreen = false },
             onLogout = onLogout
+        )
+        return
+    }
+
+    if (showVerificationScreen) {
+        VerificationScreen(
+            viewModel = viewModel,
+            onNavigateBack = { showVerificationScreen = false }
         )
         return
     }
@@ -236,7 +245,7 @@ fun ProfileScreen(
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    if (user?.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                    if (user?.isVerified == true || user?.id == MoneyPadRepository.OFFICIAL_USER_ID) {
                         Spacer(modifier = Modifier.width(6.dp))
                         VerifiedIcon()
                     }
@@ -247,6 +256,20 @@ fun ProfileScreen(
                     fontSize = 13.sp,
                     color = Color.Gray
                 )
+
+                if (user?.isVerified == false && user?.id != MoneyPadRepository.OFFICIAL_USER_ID) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { showVerificationScreen = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Get Verified Account", fontSize = 14.sp)
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 

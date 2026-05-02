@@ -90,4 +90,12 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
 
     fun getPublishedStoriesForCurrentUser(): Flow<List<com.example.moneypad.data.model.Story>> =
         repository.getPublishedStoriesByAuthor(repository.currentUserId)
+
+    suspend fun countQualifyingStories(): Int = repository.countQualifyingStories(repository.currentUserId)
+
+    fun verifyUser() {
+        viewModelScope.launch {
+            repository.verifyUser(repository.currentUserId)
+        }
+    }
 }
