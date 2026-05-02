@@ -19,9 +19,10 @@ import com.example.moneypad.data.model.*
         UserReadPart::class,
         UserStoryLike::class,
         PartAnnotation::class,
-        LibraryStory::class
+        LibraryStory::class,
+        Notification::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

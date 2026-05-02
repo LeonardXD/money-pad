@@ -17,12 +17,15 @@ data class User(
     val balance: Double = 0.0,
     val authorIncome: Double = 0.0,
     val readerCoins: Int = 0,
+    val totalReaderCoins: Int = 0,      // lifetime reader coins earned
     // New fields
     val birthday: String = "",          // "YYYY-MM-DD"
     val gender: String = "",            // "Male" | "Female" | "Non-binary" | "Prefer not to say"
     val preferredGenres: String = "",   // comma-separated, max 5
     val referredBy: String = "",        // username of referrer
     val referralCount: Int = 0,         // how many users this user referred
+    val signupTimestamp: Long = System.currentTimeMillis(),
+    val isReferralRewardClaimed: Boolean = false,
     val loginTimestamp: Long = 0L,      // epoch ms of last login, used for 7-day session check
     val onboardingStep: Int = 1,
     val onboardingCompleted: Boolean = false
@@ -94,6 +97,7 @@ data class Transaction(
     val amount: Double,
     val method: String,
     val accountInfo: String,
+    val source: String = "",           // "AUTHOR", "READER", or empty
     val timestamp: Long = System.currentTimeMillis(),
     val status: String = "Pending"
 )
@@ -134,4 +138,20 @@ data class LibraryStory(
     val userId: String,
     val storyId: String,
     val downloadedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "notifications")
+data class Notification(
+    @PrimaryKey val id: String,
+    val userId: String, // Recipient
+    val type: String, // "FOLLOW", "NEW_STORY", "NEW_PART"
+    val actorId: String, // Who triggered it
+    val actorName: String,
+    val actorProfileImageUrl: String? = null,
+    val storyId: String? = null,
+    val storyTitle: String? = null,
+    val partId: String? = null,
+    val partTitle: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+    val isRead: Boolean = false
 )

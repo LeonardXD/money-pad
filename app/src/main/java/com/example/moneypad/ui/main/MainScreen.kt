@@ -200,6 +200,28 @@ fun ExploreNavigation(
                         exploreNavController.navigate("author_profile/$id")
                     }
                 },
+                onNavigateToNotifications = { exploreNavController.navigate("notifications") },
+                viewModel = storyViewModel
+            )
+        }
+        composable("notifications") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            NotificationScreen(
+                onBack = { exploreNavController.popBackStack() },
+                onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == storyViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        exploreNavController.navigate("author_profile/$id")
+                    }
+                },
                 viewModel = storyViewModel
             )
         }

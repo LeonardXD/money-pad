@@ -11,10 +11,27 @@ import com.example.moneypad.data.model.Transaction
 import com.example.moneypad.data.model.User
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.Follow
+import com.example.moneypad.data.model.Notification
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MoneyPadDao {
+    // ── Notifications ────────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNotification(notification: Notification)
+
+    @Query("SELECT * FROM notifications WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getNotificationsForUser(userId: String): Flow<List<Notification>>
+
+    @Query("UPDATE notifications SET isRead = 1 WHERE id = :notificationId")
+    suspend fun markNotificationAsRead(notificationId: String)
+
+    @Query("UPDATE notifications SET isRead = 1 WHERE userId = :userId")
+    suspend fun markAllNotificationsAsRead(userId: String)
+
+    @Query("SELECT COUNT(*) FROM notifications WHERE userId = :userId AND isRead = 0")
+    fun getUnreadNotificationCount(userId: String): Flow<Int>
+
     // ── User ─────────────────────────────────────────────────────────────────
     @Query("SELECT * FROM users WHERE id = :userId")
     fun getUser(userId: String): Flow<User?>
@@ -28,7 +45,7 @@ interface MoneyPadDao {
     @Query("UPDATE users SET authorIncome = authorIncome + :amount WHERE id = :userId")
     suspend fun updateAuthorIncome(userId: String, amount: Double)
 
-    @Query("UPDATE users SET readerCoins = readerCoins + :amount WHERE id = :userId")
+    @Query("UPDATE users SET readerCoins = readerCoins + :amount, totalReaderCoins = totalReaderCoins + :amount WHERE id = :userId")
     suspend fun updateReaderCoins(userId: String, amount: Int)
 
     @Query("UPDATE users SET balance = balance - :amount WHERE id = :userId")
@@ -39,6 +56,18 @@ interface MoneyPadDao {
 
     @Query("UPDATE users SET readerCoins = readerCoins - :amount WHERE id = :userId")
     suspend fun deductReaderCoins(userId: String, amount: Int)
+
+    @Query("SELECT SUM(totalReaderCoins) FROM users WHERE referredBy = :username")
+    fun getTotalReferralCoins(username: String): Flow<Int?>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE userId IN (SELECT id FROM users WHERE referredBy = :username) AND userId IN (SELECT DISTINCT authorId FROM stories) AND source = 'AUTHOR'")
+    fun getReferralAuthorWithdrawals(username: String): Flow<Double?>
+
+    @Query("SELECT COUNT(*) > 0 FROM stories WHERE authorId = :userId")
+    suspend fun isUserAuthor(userId: String): Boolean
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE userId = :userId AND source = :source")
+    fun getTotalWithdrawalsBySource(userId: String, source: String): Flow<Double?>
 
     @Query("SELECT * FROM users WHERE username = :username")
     suspend fun getUserByUsername(username: String): User?
@@ -54,6 +83,12 @@ interface MoneyPadDao {
 
     @Query("UPDATE users SET bio = :bio, profileImageUrl = :profileImageUrl, coverImageUrl = :coverImageUrl WHERE id = :userId")
     suspend fun updateUserProfile(userId: String, bio: String, profileImageUrl: String?, coverImageUrl: String?)
+
+    @Query("UPDATE users SET referredBy = :referrerUsername WHERE id = :userId")
+    suspend fun updateReferrer(userId: String, referrerUsername: String)
+
+    @Query("UPDATE users SET isReferralRewardClaimed = 1 WHERE id = :userId")
+    suspend fun markReferralRewardClaimed(userId: String)
 
     @Query("UPDATE users SET username = :username, birthday = :birthday, gender = :gender, preferredGenres = :preferredGenres WHERE id = :userId")
     suspend fun updateUserSettings(userId: String, username: String, birthday: String, gender: String, preferredGenres: String)
@@ -211,6 +246,9 @@ interface MoneyPadDao {
 
     @Query("SELECT MAX(readAt) FROM user_read_parts WHERE userId = :userId AND storyId = :storyId")
     suspend fun getLastReadTimestamp(userId: String, storyId: String): Long?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_read_parts WHERE userId = :userId AND partId = :partId)")
+    fun isPartRead(userId: String, partId: String): Flow<Boolean>
 
 
     // ── Transactions ──────────────────────────────────────────────────────────

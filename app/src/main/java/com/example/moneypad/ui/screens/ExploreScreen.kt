@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -23,17 +24,54 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.CarouselStoryCard
 import com.example.moneypad.ui.components.StoryCard
+import com.example.moneypad.ui.components.VerifiedIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
     onNavigateToStoryDetail: (String) -> Unit,
     onNavigateToAuthorProfile: (String) -> Unit,
+    onNavigateToNotifications: () -> Unit,
     viewModel: StoryViewModel
 ) {
+    val user by viewModel.user.collectAsState()
+    val unreadCount by viewModel.unreadNotificationCount.collectAsState()
+
+    var showClaimRewardDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(user) {
+        if (user != null && user?.referredBy?.isNotBlank() == true && !user!!.isReferralRewardClaimed) {
+            showClaimRewardDialog = true
+        }
+    }
+
+    if (showClaimRewardDialog) {
+        AlertDialog(
+            onDismissRequest = { showClaimRewardDialog = false },
+            title = { Text("🎁 Welcome Reward!") },
+            text = { Text("Congratulations! Since you were invited by ${user?.referredBy}, you are eligible for a 10 Reader Coins welcome bonus.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.claimReferralReward()
+                        showClaimRewardDialog = false
+                    }
+                ) {
+                    Text("Claim 10 Coins")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClaimRewardDialog = false }) {
+                    Text("Maybe Later")
+                }
+            }
+        )
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedGenre by remember { mutableStateOf("All") }
 
@@ -76,7 +114,26 @@ fun ExploreScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary
-                )
+                ),
+                actions = {
+                    IconButton(onClick = onNavigateToNotifications) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadCount > 0) {
+                                    Badge {
+                                        Text(unreadCount.toString())
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -275,7 +332,13 @@ fun AuthorSearchItem(author: User, onClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(author.username, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(author.username, fontWeight = FontWeight.Bold)
+                    if (author.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon(modifier = Modifier.size(16.dp))
+                    }
+                }
                 Text("${author.followers} Followers", fontSize = 12.sp, color = Color.Gray)
             }
         }

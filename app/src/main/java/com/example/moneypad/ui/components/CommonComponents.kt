@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -28,6 +29,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Story
+
+@Composable
+fun VerifiedIcon(modifier: Modifier = Modifier) {
+    Icon(
+        imageVector = Icons.Default.Verified,
+        contentDescription = "Verified",
+        modifier = modifier.size(20.dp),
+        tint = MaterialTheme.colorScheme.primary
+    )
+}
 
 @Composable
 fun StoryCard(story: Story, onClick: () -> Unit) {
