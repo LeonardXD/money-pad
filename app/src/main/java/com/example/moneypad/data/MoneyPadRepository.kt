@@ -315,6 +315,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun unpublishStory(storyId: String) = dao.unpublishStory(storyId, System.currentTimeMillis())
 
+    suspend fun updateStory(story: Story) {
+        dao.insertStory(story)
+    }
+
     suspend fun deleteStory(storyId: String) {
         dao.deleteStory(storyId)
         dao.deleteStoryParts(storyId)
@@ -458,11 +462,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     // ── Conversations ─────────────────────────────────────────────────────────
 
     suspend fun sendMessage(authorId: String, message: String, parentId: String? = null) {
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
         dao.insertConversation(
             Conversation(
                 id = UUID.randomUUID().toString(),
                 authorId = authorId, senderId = currentUserId,
-                senderName = currentUsername, message = message, parentId = parentId
+                senderName = currentUsername, message = message, 
+                senderProfileImageUrl = currentUser?.profileImageUrl,
+                parentId = parentId
             )
         )
     }

@@ -68,6 +68,9 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     private val _reviews = MutableStateFlow<List<com.example.moneypad.data.model.Review>>(emptyList())
     val reviews = _reviews.asStateFlow()
 
+    private val _authorProfileImageUrl = MutableStateFlow<String?>(null)
+    val authorProfileImageUrl = _authorProfileImageUrl.asStateFlow()
+
     // Holds the ID of the most recently created story so navigation can pick it up
     private val _lastCreatedStoryId = MutableStateFlow<String?>(null)
     val lastCreatedStoryId: StateFlow<String?> = _lastCreatedStoryId.asStateFlow()
@@ -80,6 +83,12 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         viewModelScope.launch {
             val story = repository.getStoryById(id)
             _currentStory.value = story
+
+            if (story != null) {
+                repository.getUser(story.authorId).firstOrNull()?.let { author ->
+                    _authorProfileImageUrl.value = author.profileImageUrl
+                }
+            }
 
             // Fetch parts based on author vs reader
             val partsFlow = if (story?.authorId == repository.currentUserId) {
@@ -121,6 +130,33 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         viewModelScope.launch {
             val id = repository.createStoryAndReturnId(title, genres, overview, coverImageUrl, isPublished)
             _lastCreatedStoryId.value = id
+        }
+    }
+
+    fun updateStory(
+        storyId: String,
+        title: String,
+        genres: String,
+        overview: String,
+        coverImageUrl: String? = null,
+        isCompleted: Boolean = false,
+        isMature: Boolean = false
+    ) {
+        viewModelScope.launch {
+            val existing = repository.getStoryById(storyId) ?: return@launch
+            val updated = existing.copy(
+                title = title,
+                genres = genres,
+                overview = overview,
+                coverImageUrl = coverImageUrl ?: existing.coverImageUrl,
+                isCompleted = isCompleted,
+                isMature = isMature,
+                lastUpdatedAt = System.currentTimeMillis()
+            )
+            repository.updateStory(updated)
+            _currentStory.value = updated
+            // Trigger navigation or success state
+            _lastCreatedStoryId.value = storyId
         }
     }
 

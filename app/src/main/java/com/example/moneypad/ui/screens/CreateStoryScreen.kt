@@ -24,7 +24,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
+import com.example.moneypad.utils.ImageUtils
+
+import java.io.File
 
 val STORY_GENRES = listOf(
     "Romance", "Fantasy", "Mystery", "Sci-Fi", "Horror",
@@ -37,6 +41,7 @@ val STORY_GENRES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateStoryScreen(
+    storyId: String? = null,
     onNavigateBack: () -> Unit,
     onStoryCreated: (storyId: String) -> Unit,
     viewModel: StoryViewModel
@@ -49,6 +54,30 @@ fun CreateStoryScreen(
     var isMature by remember { mutableStateOf(false) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var genreDropdownExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val isEditMode = storyId != null
+    val currentStory by viewModel.currentStory.collectAsState()
+
+    LaunchedEffect(storyId) {
+        if (storyId != null) {
+            viewModel.getStoryById(storyId)
+        }
+    }
+
+    LaunchedEffect(currentStory) {
+        if (isEditMode && currentStory != null) {
+            val story = currentStory!!
+            title = story.title
+            selectedGenres = story.genres.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+            overview = story.overview
+            isCompleted = story.isCompleted
+            isMature = story.isMature
+            if (!story.coverImageUrl.isNullOrBlank()) {
+                imageUri = Uri.parse(story.coverImageUrl)
+            }
+        }
+    }
 
     val lastCreatedStoryId by viewModel.lastCreatedStoryId.collectAsState()
 
@@ -62,13 +91,20 @@ fun CreateStoryScreen(
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> imageUri = uri }
+    ) { uri: Uri? ->
+        uri?.let {
+            val localPath = ImageUtils.saveImageToInternalStorage(context, it)
+            if (localPath != null) {
+                imageUri = Uri.fromFile(File(localPath))
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Story Setup") },
+                title = { Text(if (isEditMode) "Edit Story" else "Story Setup") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -255,14 +291,25 @@ fun CreateStoryScreen(
             Button(
                 onClick = {
                     if (title.isNotBlank() && overview.isNotBlank()) {
-                        viewModel.addStory(
-                            title,
-                            selectedGenres.joinToString(", "),
-                            overview,
-                            imageUri?.toString(),
-                            isPublished = false
-                        )
-                        // Navigation happens via LaunchedEffect on lastCreatedStoryId
+                        if (isEditMode && storyId != null) {
+                            viewModel.updateStory(
+                                storyId,
+                                title,
+                                selectedGenres.joinToString(", "),
+                                overview,
+                                imageUri?.toString(),
+                                isCompleted,
+                                isMature
+                            )
+                        } else {
+                            viewModel.addStory(
+                                title,
+                                selectedGenres.joinToString(", "),
+                                overview,
+                                imageUri?.toString(),
+                                isPublished = false
+                            )
+                        }
                     }
                 },
                 modifier = Modifier
@@ -272,7 +319,7 @@ fun CreateStoryScreen(
                 enabled = title.isNotBlank() && overview.isNotBlank()
             ) {
                 Text(
-                    "Create Story Dashboard",
+                    if (isEditMode) "Save Changes" else "Create Story",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )

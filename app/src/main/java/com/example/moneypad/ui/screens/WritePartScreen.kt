@@ -63,6 +63,7 @@ fun WritePartScreen(
     var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
+    var showStatsDialog by remember { mutableStateOf(false) }
     var showFontMenu by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
@@ -127,6 +128,31 @@ fun WritePartScreen(
                     onNavigateBack()
                 }) {
                     Text("Discard")
+                }
+            }
+        )
+    }
+
+    // Writing stats dialog
+    if (showStatsDialog) {
+        val rawText = content.text
+        val characters = rawText.length
+        val words = if (rawText.isBlank()) 0 else rawText.trim().split("\\s+".toRegex()).size
+        val paragraphs = if (rawText.isBlank()) 0 else rawText.trim().split("\n+".toRegex()).size
+
+        AlertDialog(
+            onDismissRequest = { showStatsDialog = false },
+            title = { Text("Writing Stats") },
+            text = {
+                Column {
+                    Text("Characters: $characters")
+                    Text("Words: $words")
+                    Text("Paragraphs: $paragraphs")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStatsDialog = false }) {
+                    Text("Close")
                 }
             }
         )
@@ -229,6 +255,13 @@ fun WritePartScreen(
                                 onClick = {
                                     expanded = false
                                     saveDraftAndExit()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Writing Stats") },
+                                onClick = {
+                                    expanded = false
+                                    showStatsDialog = true
                                 }
                             )
                             DropdownMenuItem(

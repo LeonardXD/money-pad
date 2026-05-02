@@ -77,40 +77,6 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            // Balance Card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Current Balance",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "$${String.format("%.2f", totalUsd)}",
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = balanceColor
-                        )
-                        Text(
-                            text = "≈ ₱${String.format("%.2f", totalPhp)}",
-                            fontSize = 16.sp,
-                            color = balanceColor.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-            }
-
             // Categories
             item {
                 Text("Earning Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -262,6 +228,37 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                             ) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy link", tint = MaterialTheme.colorScheme.primary)
                             }
+                        }
+                    }
+                }
+            }
+
+            // Invite Stats
+            item {
+                val referralCount = uiState.user?.referralCount ?: 0
+                val inviteEarnings = referralCount * 4.75 // Calculated based on the rate mentioned in the card
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Total Invites", fontSize = 12.sp, color = Color.Gray)
+                            Text("$referralCount", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Invite Earnings", fontSize = 12.sp, color = Color.Gray)
+                            Text("₱${String.format("%.2f", inviteEarnings)}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }

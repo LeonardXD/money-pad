@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.CarouselStoryCard
 import com.example.moneypad.ui.components.StoryCard
@@ -261,7 +262,16 @@ fun AuthorSearchItem(author: User, onClick: () -> Unit) {
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                if (author.profileImageUrl != null) {
+                    AsyncImage(
+                        model = author.profileImageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {

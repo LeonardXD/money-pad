@@ -34,7 +34,7 @@ object HtmlConverter {
                 "\uFFFC"
             }
             
-        val spanned = HtmlCompat.fromHtml(preProcessed, HtmlCompat.FROM_HTML_MODE_COMPACT)
+        val spanned = HtmlCompat.fromHtml(preProcessed, HtmlCompat.FROM_HTML_MODE_LEGACY)
         val builder = AnnotatedString.Builder(spanned.toString())
         
         spanned.getSpans(0, spanned.length, Any::class.java).forEach { span ->

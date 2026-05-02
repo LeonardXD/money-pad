@@ -49,6 +49,7 @@ fun StoryViewScreen(
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
     val reviews by viewModel.reviews.collectAsState()
+    val authorProfileImageUrl by viewModel.authorProfileImageUrl.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Summary", "Parts")
@@ -258,12 +259,21 @@ fun StoryViewScreen(
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
+                                        if (authorProfileImageUrl != null) {
+                                            AsyncImage(
+                                                model = authorProfileImageUrl,
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.Person,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(

@@ -35,6 +35,7 @@ data class Conversation(
     val senderId: String,
     val senderName: String,
     val message: String,
+    val senderProfileImageUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val parentId: String? = null
 )

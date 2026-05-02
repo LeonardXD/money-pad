@@ -69,7 +69,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomNavItem.Explore.route) {
-                ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it })
+                ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
             }
             composable(BottomNavItem.Library.route) {
                 LibraryNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
@@ -87,7 +87,8 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
                     factory = factory,
                     themeViewModel = themeViewModel,
                     onLogout = onLogout,
-                    onShowBottomBar = { showBottomBar = it }
+                    onShowBottomBar = { showBottomBar = it },
+                    rootNavController = navController
                 )
             }
         }
@@ -99,7 +100,8 @@ fun ProfileNavigation(
     factory: ViewModelFactory,
     themeViewModel: ThemeViewModel,
     onLogout: () -> Unit,
-    onShowBottomBar: (Boolean) -> Unit
+    onShowBottomBar: (Boolean) -> Unit,
+    rootNavController: androidx.navigation.NavController
 ) {
     val profileNavController = rememberNavController()
     val storyViewModel: StoryViewModel = viewModel(factory = factory)
@@ -122,11 +124,21 @@ fun ProfileNavigation(
                 authorId = authorId,
                 onNavigateBack = { profileNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> 
-                    // For now, we don't have a story view screen in this nav host
-                    // But we could add it if needed
                     profileNavController.navigate("story_view/$id")
                 },
-                onNavigateToAuthorProfile = { id -> profileNavController.navigate("author_profile/$id") },
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == profileViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        profileNavController.navigate("author_profile/$id")
+                    }
+                },
                 storyViewModel = storyViewModel,
                 profileViewModel = profileViewModel
             )
@@ -162,7 +174,12 @@ fun ProfileNavigation(
 }
 
 @Composable
-fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory, onShowBottomBar: (Boolean) -> Unit) {
+fun ExploreNavigation(
+    storyViewModel: StoryViewModel, 
+    factory: ViewModelFactory, 
+    onShowBottomBar: (Boolean) -> Unit,
+    rootNavController: androidx.navigation.NavController
+) {
     val exploreNavController = rememberNavController()
 
     NavHost(navController = exploreNavController, startDestination = "explore_list") {
@@ -170,7 +187,19 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory,
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
             ExploreScreen(
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
-                onNavigateToAuthorProfile = { id -> exploreNavController.navigate("author_profile/$id") },
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == storyViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        exploreNavController.navigate("author_profile/$id")
+                    }
+                },
                 viewModel = storyViewModel
             )
         }
@@ -208,7 +237,19 @@ fun ExploreNavigation(storyViewModel: StoryViewModel, factory: ViewModelFactory,
                 authorId = authorId,
                 onNavigateBack = { exploreNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
-                onNavigateToAuthorProfile = { id -> exploreNavController.navigate("author_profile/$id") },
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == storyViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        exploreNavController.navigate("author_profile/$id")
+                    }
+                },
                 storyViewModel = storyViewModel,
                 profileViewModel = viewModel(factory = factory)
             )
@@ -224,20 +265,31 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
         composable("list") {
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
             WriteScreen(
-                onNavigateToCreateStory = { writeNavController.navigate("create") },
+                onNavigateToCreateStory = { writeNavController.navigate("setup") },
                 onNavigateToStoryDetail = { id -> writeNavController.navigate("detail/$id") },
                 viewModel = storyViewModel
             )
         }
-        composable("create") {
+        composable(
+            route = "setup?storyId={storyId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("storyId") { type = androidx.navigation.NavType.StringType; nullable = true }
+            )
+        ) { backStackEntry ->
+            val storyId = backStackEntry.arguments?.getString("storyId")
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             CreateStoryScreen(
+                storyId = storyId,
                 onNavigateBack = { writeNavController.popBackStack() },
-                // After creating a story, jump straight to the write-part screen
-                onStoryCreated = { storyId ->
-                    // Pop "create" off the stack so back from WritePartScreen goes to "list"
-                    writeNavController.navigate("write_part/$storyId") {
-                        popUpTo("create") { inclusive = true }
+                onStoryCreated = { id ->
+                    if (storyId == null) {
+                        // New story created, go to write_part
+                        writeNavController.navigate("write_part/$id") {
+                            popUpTo("setup") { inclusive = true }
+                        }
+                    } else {
+                        // Existing story updated, just go back
+                        writeNavController.popBackStack()
                     }
                 },
                 viewModel = storyViewModel
@@ -250,6 +302,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
                 storyId = storyId,
                 onNavigateBack = { writeNavController.popBackStack() },
                 onNavigateToWritePart = { id -> writeNavController.navigate("write_part/$id") },
+                onNavigateToEditStory = { id -> writeNavController.navigate("setup?storyId=$id") },
                 viewModel = storyViewModel
             )
         }

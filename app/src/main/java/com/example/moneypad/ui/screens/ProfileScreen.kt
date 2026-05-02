@@ -22,6 +22,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Conversation
@@ -29,6 +30,8 @@ import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.theme.ThemeViewModel
+import com.example.moneypad.utils.ImageUtils
+import java.io.File
 
 @Composable
 fun ProfileScreen(
@@ -42,6 +45,7 @@ fun ProfileScreen(
     val conversations by viewModel.conversations.collectAsState()
     val followers by viewModel.followers.collectAsState()
     val following by viewModel.following.collectAsState()
+    val context = LocalContext.current
 
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("About", "Stories", "Conversation")
@@ -50,6 +54,7 @@ fun ProfileScreen(
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showFollowersDialog by remember { mutableStateOf(false) }
     var showFollowingDialog by remember { mutableStateOf(false) }
+    var messageText by remember { mutableStateOf("") }
 
     if (showSettingsScreen) {
         SettingsScreen(
@@ -64,13 +69,25 @@ fun ProfileScreen(
     val profileImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { viewModel.updateProfile(user?.bio ?: "", it.toString(), user?.coverImageUrl) }
+        uri?.let {
+            val localPath = ImageUtils.saveImageToInternalStorage(context, it)
+            if (localPath != null) {
+                val localUri = Uri.fromFile(File(localPath)).toString()
+                viewModel.updateProfile(user?.bio ?: "", localUri, user?.coverImageUrl)
+            }
+        }
     }
 
     val coverImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { viewModel.updateProfile(user?.bio ?: "", user?.profileImageUrl, it.toString()) }
+        uri?.let {
+            val localPath = ImageUtils.saveImageToInternalStorage(context, it)
+            if (localPath != null) {
+                val localUri = Uri.fromFile(File(localPath)).toString()
+                viewModel.updateProfile(user?.bio ?: "", user?.profileImageUrl, localUri)
+            }
+        }
     }
 
     // Followers dialog
@@ -88,7 +105,8 @@ fun ProfileScreen(
             onToggleFollow = { targetUser ->
                 val isCurrentlyFollowing = following.any { it.id == targetUser.id }
                 viewModel.toggleFollow(targetUser.id, isCurrentlyFollowing)
-            }
+            },
+            currentUserId = viewModel.currentUserId
         )
     }
 
@@ -104,156 +122,257 @@ fun ProfileScreen(
             },
             isFollowersList = false,
             myFollowingList = following,
-            onToggleFollow = {}
+            onToggleFollow = {},
+            currentUserId = viewModel.currentUserId
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    val publishedStories by viewModel
+        .getPublishedStoriesForCurrentUser()
+        .collectAsState(initial = emptyList())
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
         // ── Profile header ─────────────────────────────────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-        ) {
-            // Cover image
+        item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                    .clickable { coverImageLauncher.launch("image/*") }
+                    .height(200.dp)
             ) {
-                if (user?.coverImageUrl != null) {
-                    AsyncImage(
-                        model = user?.coverImageUrl,
-                        contentDescription = "Cover Image",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.AddPhotoAlternate,
-                        contentDescription = "Add Cover",
-                        modifier = Modifier.align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            // Settings gear
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-            ) {
-                IconButton(
-                    onClick = { showSettingsScreen = true },
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                }
-            }
-
-            // Profile image
-            Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .align(Alignment.BottomCenter)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(4.dp)
-            ) {
+                // Cover image
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
+                        .fillMaxWidth()
+                        .height(150.dp)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .clickable { profileImageLauncher.launch("image/*") },
-                    contentAlignment = Alignment.Center
+                        .clickable { coverImageLauncher.launch("image/*") }
                 ) {
-                    if (user?.profileImageUrl != null) {
+                    if (user?.coverImageUrl != null) {
                         AsyncImage(
-                            model = user?.profileImageUrl,
-                            contentDescription = "Profile Picture",
+                            model = user?.coverImageUrl,
+                            contentDescription = "Cover Image",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     } else {
                         Icon(
-                            Icons.Default.Person,
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier.size(60.dp),
+                            Icons.Default.AddPhotoAlternate,
+                            contentDescription = "Add Cover",
+                            modifier = Modifier.align(Alignment.Center),
                             tint = MaterialTheme.colorScheme.primary
                         )
+                    }
+                }
+
+                // Settings gear
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                ) {
+                    IconButton(
+                        onClick = { showSettingsScreen = true },
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
+                    }
+                }
+
+                // Profile image
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .align(Alignment.BottomCenter)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            .clickable { profileImageLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (user?.profileImageUrl != null) {
+                            AsyncImage(
+                                model = user?.profileImageUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier.size(60.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        item { Spacer(modifier = Modifier.height(8.dp)) }
 
         // ── User info ──────────────────────────────────────────────────────
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = user?.username ?: "Loading...",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
-            // Email visible only to owner
-            Text(
-                text = user?.email ?: "",
-                fontSize = 13.sp,
-                color = Color.Gray
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Stats row — followers/following are tappable
-            Row(
+        item {
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
-                    StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
-                }
-                Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
-                    StatItem(label = "Following", value = (user?.following ?: 0).toString())
-                }
-                Box(modifier = Modifier.clickable { selectedTab = 1 }) {
-                    StatItem(label = "Stories", value = storiesPublished.toString())
+                Text(
+                    text = user?.username ?: "Loading...",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                // Email visible only to owner
+                Text(
+                    text = user?.email ?: "",
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Stats row — followers/following are tappable
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
+                        StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
+                    }
+                    Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
+                        StatItem(label = "Following", value = (user?.following ?: 0).toString())
+                    }
+                    Box(modifier = Modifier.clickable { selectedTab = 1 }) {
+                        StatItem(label = "Stories", value = publishedStories.size.toString())
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        item { Spacer(modifier = Modifier.height(16.dp)) }
 
         // ── Tabs ───────────────────────────────────────────────────────────
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
-                )
+        item {
+            TabRow(selectedTabIndex = selectedTab) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
+                }
             }
         }
 
-        Box(modifier = Modifier.weight(1f)) {
-            when (selectedTab) {
-                0 -> AboutTab(user?.bio ?: "", onSaveBio = { newBio ->
+        when (selectedTab) {
+            0 -> item {
+                AboutTab(user?.bio ?: "", onSaveBio = { newBio ->
                     viewModel.updateProfile(newBio, user?.profileImageUrl, user?.coverImageUrl)
                 })
-                1 -> ProfileStoriesTab(viewModel = viewModel)
-                2 -> ConversationTabWithPosting(
-                    authorId = user?.id ?: "",
-                    conversations = conversations,
-                    profileViewModel = viewModel
-                )
+            }
+            1 -> {
+                if (publishedStories.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No published stories yet.", color = Color.Gray)
+                        }
+                    }
+                } else {
+                    val displayedStories = if (publishedStories.size > 6) publishedStories.take(6) else publishedStories
+                    val hasMore = publishedStories.size > 6
+                    val chunked = displayedStories.chunked(2)
+
+                    items(chunked) { row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            row.forEach { story ->
+                                ProfileStoryItem(story = story, modifier = Modifier.weight(1f))
+                            }
+                            if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+
+                    if (hasMore) {
+                        item {
+                            TextButton(
+                                onClick = { /* future: navigate to full list */ },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("View All Stories →", color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+            2 -> {
+                // Post Message Area for owner
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = messageText,
+                            onValueChange = { messageText = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Post a message to your wall...") },
+                            maxLines = 3,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                if (messageText.isNotBlank()) {
+                                    viewModel.sendMessage(user?.id ?: "", messageText)
+                                    messageText = ""
+                                }
+                            },
+                            enabled = messageText.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+
+                if (conversations.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No conversations yet.", color = Color.Gray)
+                        }
+                    }
+                } else {
+                    items(conversations) { conv ->
+                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            ConversationItemForProfile(conv, user?.id ?: "", viewModel)
+                        }
+                    }
+                }
             }
         }
+
+        item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }
 
@@ -267,7 +386,8 @@ fun UserListDialog(
     onNavigateToPublicProfile: (String) -> Unit,
     isFollowersList: Boolean,
     myFollowingList: List<User>,
-    onToggleFollow: (User) -> Unit
+    onToggleFollow: (User) -> Unit,
+    currentUserId: String
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -287,11 +407,18 @@ fun UserListDialog(
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(users) { u ->
                             val isFollowing = myFollowingList.any { it.id == u.id }
+                            val isMe = u.id == currentUserId
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onNavigateToPublicProfile(u.id) }
+                                    .clickable { 
+                                        if (isMe) {
+                                            onDismiss()
+                                        } else {
+                                            onNavigateToPublicProfile(u.id)
+                                        }
+                                    }
                                     .padding(vertical = 4.dp)
                             ) {
                                 Box(
@@ -313,9 +440,13 @@ fun UserListDialog(
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(u.username, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                                Text(
+                                    text = if (isMe) "${u.username} (You)" else u.username, 
+                                    fontWeight = FontWeight.Medium, 
+                                    modifier = Modifier.weight(1f)
+                                )
                                 
-                                if (isFollowersList) {
+                                if (isFollowersList && !isMe) {
                                     IconButton(onClick = { onToggleFollow(u) }) {
                                         Icon(
                                             imageVector = if (isFollowing) Icons.Default.Check else Icons.Default.PersonAdd,
@@ -327,61 +458,6 @@ fun UserListDialog(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-// ── Stories grid (own profile) ────────────────────────────────────────────────
-
-@Composable
-fun ProfileStoriesTab(viewModel: ProfileViewModel) {
-    val stories by viewModel.user.collectAsState()
-    // We load published stories for the current user via a dedicated flow
-    val storiesList by remember {
-        derivedStateOf { emptyList<Story>() }
-    }
-    // Use a real flow — call viewModel helper
-    val publishedStories by viewModel
-        .getPublishedStoriesForCurrentUser()
-        .collectAsState(initial = emptyList())
-
-    if (publishedStories.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No published stories yet.", color = Color.Gray)
-        }
-        return
-    }
-
-    val displayedStories = if (publishedStories.size > 6) publishedStories.take(6) else publishedStories
-    val hasMore = publishedStories.size > 6
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        val chunked = displayedStories.chunked(2)
-        items(chunked) { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                row.forEach { story ->
-                    ProfileStoryItem(story = story, modifier = Modifier.weight(1f))
-                }
-                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-
-        if (hasMore) {
-            item {
-                TextButton(
-                    onClick = { /* future: navigate to full list */ },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("View All Stories →", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -432,31 +508,6 @@ private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Keep existing tabs unchanged ──────────────────────────────────────────────
-
-@Composable
-fun ConversationTabWithReplies(
-    userId: String,
-    conversations: List<Conversation>,
-    viewModel: ProfileViewModel
-) {
-    if (conversations.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No conversations yet.", color = Color.Gray)
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(conversations) { conv ->
-                ConversationItemForProfile(conv, userId, viewModel)
-            }
-        }
-    }
-}
-
 @Composable
 fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: ProfileViewModel) {
     val replies by viewModel.getReplies(conv.id).collectAsState(initial = emptyList())
@@ -475,7 +526,16 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    if (conv.senderProfileImageUrl != null) {
+                        AsyncImage(
+                            model = conv.senderProfileImageUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
@@ -500,7 +560,16 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                                if (reply.senderProfileImageUrl != null) {
+                                    AsyncImage(
+                                        model = reply.senderProfileImageUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                                }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {

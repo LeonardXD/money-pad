@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ fun StoryDetailScreen(
     storyId: String,
     onNavigateBack: () -> Unit,
     onNavigateToWritePart: (String) -> Unit,
+    onNavigateToEditStory: (String) -> Unit,
     viewModel: StoryViewModel
 ) {
     val story by viewModel.currentStory.collectAsState()
@@ -46,6 +48,11 @@ fun StoryDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { onNavigateToEditStory(storyId) }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Story")
                     }
                 }
             )
@@ -67,14 +74,6 @@ fun StoryDetailScreen(
                     .padding(innerPadding)
                     .padding(horizontal = 16.dp)
             ) {
-                Text(
-                    text = "Story Dashboard",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Table of Contents (${parts.size})",
@@ -84,8 +83,12 @@ fun StoryDetailScreen(
                     if (!it.isPublished) {
                         Button(
                             onClick = { 
-                                viewModel.publishStory(it.id)
-                                android.widget.Toast.makeText(context, "Story published", android.widget.Toast.LENGTH_SHORT).show()
+                                if (parts.isEmpty()) {
+                                    android.widget.Toast.makeText(context, "Cannot publish a story with no chapters.", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.publishStory(it.id)
+                                    android.widget.Toast.makeText(context, "Story published", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             },
                             shape = RoundedCornerShape(12.dp)
                         ) {
