@@ -10,6 +10,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,12 +29,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.StatItem
+import com.example.moneypad.ui.components.VerifiedIcon
 import com.example.moneypad.ui.theme.ThemeViewModel
 import com.example.moneypad.utils.ImageUtils
+import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -131,7 +138,7 @@ fun ProfileScreen(
         .getPublishedStoriesForCurrentUser()
         .collectAsState(initial = emptyList())
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxSize().imePadding()) {
         // ── Profile header ─────────────────────────────────────────────────
         item {
             Box(
@@ -223,11 +230,17 @@ fun ProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = user?.username ?: "Loading...",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = user?.username ?: "Loading...",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (user?.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        VerifiedIcon()
+                    }
+                }
                 // Email visible only to owner
                 Text(
                     text = user?.email ?: "",
@@ -440,11 +453,19 @@ fun UserListDialog(
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (isMe) "${u.username} (You)" else u.username, 
-                                    fontWeight = FontWeight.Medium, 
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.weight(1f)
-                                )
+                                ) {
+                                    Text(
+                                        text = if (isMe) "${u.username} (You)" else u.username, 
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (u.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        VerifiedIcon(modifier = Modifier.size(14.dp))
+                                    }
+                                }
                                 
                                 if (isFollowersList && !isMe) {
                                     IconButton(onClick = { onToggleFollow(u) }) {
@@ -513,9 +534,12 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
     val replies by viewModel.getReplies(conv.id).collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
@@ -540,7 +564,9 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { showReplyInput = !showReplyInput }) {
+                TextButton(onClick = { 
+                    showReplyInput = !showReplyInput
+                }) {
                     Text("Reply", fontSize = 12.sp)
                 }
             }
@@ -589,7 +615,7 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                     OutlinedTextField(
                         value = replyText,
                         onValueChange = { replyText = it },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
                         placeholder = { Text("Write a reply...", fontSize = 12.sp) },
                         maxLines = 2,
                         shape = RoundedCornerShape(20.dp)
@@ -605,6 +631,12 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                         enabled = replyText.isNotBlank()
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                LaunchedEffect(Unit) {
+                    focusRequester.requestFocus()
+                    scope.launch {
+                        bringIntoViewRequester.bringIntoView()
                     }
                 }
             }

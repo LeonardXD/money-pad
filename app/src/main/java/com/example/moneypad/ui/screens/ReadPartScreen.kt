@@ -82,10 +82,13 @@ fun ReadPartScreen(
         viewModel.getStoryById(storyId)
         if (!isPreview) {
             viewModel.recordRead(storyId)
-            viewModel.recordPartRead(storyId, partId)
         }
         viewModel.getAnnotationsForPart(partId)
     }
+
+    // Fix flickering: remember the flow so it's not recreated on every recomposition
+    val isPartReadFlow = remember(partId) { viewModel.isPartRead(partId) }
+    val isPartAlreadyRead by isPartReadFlow.collectAsState()
     
     LaunchedEffect(parts) {
         val part = parts.find { it.id == partId }
@@ -101,22 +104,36 @@ fun ReadPartScreen(
     val currentIndex = parts.indexOf(part)
     val prevPart = if (currentIndex > 0) parts[currentIndex - 1] else null
     val nextPart = if (currentIndex in 0 until parts.size - 1) parts[currentIndex + 1] else null
+    val isLastPart = nextPart == null && parts.isNotEmpty() && currentIndex == parts.size - 1
 
     val scrollState = rememberScrollState()
 
     // Earnings Feature
     var earnedCoins by remember { mutableIntStateOf(0) }
     var progress by remember { mutableFloatStateOf(0f) }
+    
+    // Optimization: Use a Ref-like object for activity time to avoid 
+    // recomposing the whole screen on every scroll pixel.
+    val activityRef = remember { object { var lastTime = System.currentTimeMillis() } }
 
-    if (!isPreview) {
-        LaunchedEffect(Unit) {
+    LaunchedEffect(scrollState.value) {
+        activityRef.lastTime = System.currentTimeMillis()
+    }
+
+    if (!isPreview && !isPartAlreadyRead) {
+        LaunchedEffect(partId) { // Restart if chapter changes
+            progress = 0f
             while (true) {
-                // One minute to fill. 60s * 10 ticks/s = 600 ticks.
-                progress += (1f / 600f)
-                if (progress >= 1f) {
-                    earnedCoins += 5
-                    viewModel.earnReaderCoins(5)
-                    progress = 0f
+                val currentTime = System.currentTimeMillis()
+                // Only progress if user was active within the last 3 minutes
+                if (currentTime - activityRef.lastTime < 3 * 60 * 1000) {
+                    // One minute to fill. 60s * 10 ticks/s = 600 ticks.
+                    progress += (1f / 600f)
+                    if (progress >= 1f) {
+                        earnedCoins += 5
+                        viewModel.earnReaderCoins(5)
+                        progress = 0f
+                    }
                 }
                 kotlinx.coroutines.delay(100)
             }
@@ -228,9 +245,23 @@ fun ReadPartScreen(
                                     } else {
                                         Spacer(modifier = Modifier.weight(1f))
                                     }
+                                    
                                     if (nextPart != null) {
-                                        Button(onClick = { onNavigateToPart(nextPart.id) }) {
+                                        Button(onClick = { 
+                                            if (!isPreview) viewModel.recordPartRead(storyId, partId)
+                                            onNavigateToPart(nextPart.id) 
+                                        }) {
                                             Text("Next")
+                                        }
+                                    } else if (isLastPart) {
+                                        Button(
+                                            onClick = {
+                                                if (!isPreview) viewModel.recordPartRead(storyId, partId)
+                                                onNavigateBack()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                                        ) {
+                                            Text("Finish")
                                         }
                                     }
                                 }
@@ -288,23 +319,37 @@ fun ReadPartScreen(
                                         .padding(end = 16.dp, top = 32.dp),
                                     contentAlignment = Alignment.TopEnd
                                 ) {
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(50.dp)
-                                    ) {
-                                        CircularProgressIndicator(
-                                            progress = { progress },
-                                            modifier = Modifier.fillMaxSize(),
-                                            color = Color(0xFFFFD700),
-                                            strokeWidth = 4.dp,
-                                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                        Text(
-                                            text = "+$earnedCoins",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
+                                    if (isPartAlreadyRead) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(16.dp)
+                                        ) {
+                                            Text(
+                                                "Coins already earned for this chapter",
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    } else {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.size(50.dp)
+                                        ) {
+                                            CircularProgressIndicator(
+                                                progress = { progress },
+                                                modifier = Modifier.fillMaxSize(),
+                                                color = Color(0xFFFFD700),
+                                                strokeWidth = 4.dp,
+                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
+                                            Text(
+                                                text = "+$earnedCoins",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
                             }

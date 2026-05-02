@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.ui.components.VerifiedIcon
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -281,6 +283,10 @@ fun StoryViewScreen(
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium
                                     )
+                                    if (currentStory.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        VerifiedIcon(modifier = Modifier.size(16.dp))
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(24.dp))

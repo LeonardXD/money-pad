@@ -7,6 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,10 +24,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.components.StoryCard
+import com.example.moneypad.ui.components.VerifiedIcon
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +113,7 @@ fun PublicProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .imePadding()
             ) {
                 // Top Profile Header with Images
                 item {
@@ -175,20 +183,40 @@ fun PublicProfileScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = user.username,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = user.username,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (user.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                VerifiedIcon()
+                            }
+                        }
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
-                        Button(
-                            onClick = { profileViewModel.toggleFollow(authorId, isFollowing) },
-                            colors = if (isFollowing) ButtonDefaults.outlinedButtonColors() else ButtonDefaults.buttonColors(),
-                            border = if (isFollowing) ButtonDefaults.outlinedButtonBorder else null
-                        ) {
-                            Text(if (isFollowing) "Unfollow" else "Follow")
+                        if (user.id != MoneyPadRepository.OFFICIAL_USER_ID || !isFollowing) {
+                            Button(
+                                onClick = { profileViewModel.toggleFollow(authorId, isFollowing) },
+                                colors = if (isFollowing) ButtonDefaults.outlinedButtonColors() else ButtonDefaults.buttonColors(),
+                                border = if (isFollowing) ButtonDefaults.outlinedButtonBorder else null
+                            ) {
+                                Text(if (isFollowing) "Unfollow" else "Follow")
+                            }
+                        } else {
+                            // Official account already followed, cannot unfollow
+                            Button(
+                                onClick = { },
+                                enabled = false,
+                                colors = ButtonDefaults.buttonColors(
+                                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    disabledContentColor = Color.White
+                                )
+                            ) {
+                                Text("Following")
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -337,9 +365,12 @@ fun ConversationItem(
     val replies by profileViewModel.getReplies(conv.id).collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
@@ -422,7 +453,7 @@ fun ConversationItem(
                     OutlinedTextField(
                         value = replyText,
                         onValueChange = { replyText = it },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
                         placeholder = { Text("Write a reply...", fontSize = 12.sp) },
                         maxLines = 2,
                         shape = RoundedCornerShape(20.dp)
@@ -438,6 +469,12 @@ fun ConversationItem(
                         enabled = replyText.isNotBlank()
                     ) {
                         Icon(Icons.Default.Send, contentDescription = "Send Reply", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                LaunchedEffect(Unit) {
+                    focusRequester.requestFocus()
+                    scope.launch {
+                        bringIntoViewRequester.bringIntoView()
                     }
                 }
             }

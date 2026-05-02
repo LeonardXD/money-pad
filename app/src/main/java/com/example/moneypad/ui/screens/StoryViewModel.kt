@@ -114,6 +114,18 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
+    val user: StateFlow<com.example.moneypad.data.model.User?> = repository.getCurrentUser().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    fun claimReferralReward() {
+        viewModelScope.launch {
+            repository.claimReferralReward()
+        }
+    }
+
     fun addReview(storyId: String, rating: Int, comment: String) {
         viewModelScope.launch {
             repository.addReview(storyId, rating, comment)
@@ -310,4 +322,36 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = false
     )
+
+    fun isPartRead(partId: String) = repository.isPartRead(partId).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
+
+    // ── Notifications ────────────────────────────────────────────────────────
+
+    val notifications = repository.getNotifications().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val unreadNotificationCount = repository.getUnreadNotificationCount().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0
+    )
+
+    fun markNotificationAsRead(notificationId: String) {
+        viewModelScope.launch {
+            repository.markNotificationAsRead(notificationId)
+        }
+    }
+
+    fun markAllNotificationsAsRead() {
+        viewModelScope.launch {
+            repository.markAllNotificationsAsRead()
+        }
+    }
 }
