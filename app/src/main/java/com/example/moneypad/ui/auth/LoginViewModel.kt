@@ -30,7 +30,10 @@ class LoginViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     }
 
     fun login() {
-        if (uiState.value.username.isBlank() || uiState.value.password.isBlank()) {
+        val trimmedUsername = uiState.value.username.trim()
+        val trimmedPassword = uiState.value.password.trim()
+
+        if (trimmedUsername.isBlank() || trimmedPassword.isBlank()) {
             _uiState.value = _uiState.value.copy(error = "Fields cannot be empty")
             return
         }
@@ -38,7 +41,7 @@ class LoginViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
         
         viewModelScope.launch {
-            val result = repository.login(uiState.value.username, uiState.value.password)
+            val result = repository.login(trimmedUsername, trimmedPassword)
             if (result.isSuccess) {
                 val user = result.getOrNull()
                 _uiState.value = _uiState.value.copy(
