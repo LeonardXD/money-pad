@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.moneypad.data.model.Transaction
@@ -58,6 +59,19 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     val clipboard = LocalClipboardManager.current
     val appLink = "https://moneypad.app/join/${uiState.user?.username}"
 
+    var showClaimRewardDialog by remember { mutableStateOf(false) }
+    var referrerInput by remember { mutableStateOf("") }
+    var referrerError by remember { mutableStateOf<String?>(null) }
+
+    // Check if user has a referrer but hasn't claimed reward yet
+    LaunchedEffect(uiState.user) {
+        uiState.user?.let { user ->
+            if (user.referredBy.isNotBlank() && !user.isReferralRewardClaimed) {
+                showClaimRewardDialog = true
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -77,6 +91,83 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
+            // Welcome Bonus Card (1-day grace period)
+            val user = uiState.user
+            if (user != null && user.referredBy.isBlank()) {
+                val now = System.currentTimeMillis()
+                val gracePeriod = 24 * 60 * 60 * 1000L
+                if (now - user.signupTimestamp < gracePeriod) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "🎁 Welcome Bonus!",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "Enter the username of the person who invited you to claim 10 Reader Coins!",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(
+                                        value = referrerInput,
+                                        onValueChange = { 
+                                            referrerInput = it
+                                            referrerError = null
+                                        },
+                                        placeholder = { Text("Referrer Username", fontSize = 12.sp) },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        isError = referrerError != null,
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = Color.White,
+                                            unfocusedContainerColor = Color.White
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            if (referrerInput.isNotBlank()) {
+                                                viewModel.updateReferrer(
+                                                    referrerInput,
+                                                    onSuccess = {
+                                                        referrerInput = ""
+                                                        // dialog will show via LaunchedEffect
+                                                    },
+                                                    onError = { referrerError = it }
+                                                )
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("Claim")
+                                    }
+                                }
+                                if (referrerError != null) {
+                                    Text(
+                                        referrerError!!,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Categories
             item {
                 Text("Earning Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -236,8 +327,7 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
             // Invite Stats
             item {
                 val referralCount = uiState.user?.referralCount ?: 0
-                val inviteEarnings = referralCount * 4.75 // Calculated based on the rate mentioned in the card
-
+                
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -249,16 +339,26 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("Total Invites", fontSize = 12.sp, color = Color.Gray)
-                            Text("$referralCount", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("Total Invites", fontSize = 10.sp, color = Color.Gray)
+                            Text("$referralCount", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("Invite Earnings", fontSize = 12.sp, color = Color.Gray)
-                            Text("₱${String.format("%.2f", inviteEarnings)}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+                        
+                        VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
+                        
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("Coins Accumulated", fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                            Text("${uiState.referralCoinsAccumulated}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
+
+                        VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                            Text("Commission", fontSize = 10.sp, color = Color.Gray)
+                            Text("₱${String.format("%.2f", uiState.referralCommission)}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -321,7 +421,8 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                 showWithdrawDialog = false
             },
             authorPhp = authorPhp,
-            readerPhp = readerPhp
+            readerPhp = readerPhp,
+            referralPhp = uiState.referralBalance
         )
     }
 
@@ -344,6 +445,29 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
             onConfirm = { plan -> 
                 showUpgradeDialog = false
                 showUpgradeSuccess = plan
+            }
+        )
+    }
+
+    if (showClaimRewardDialog) {
+        AlertDialog(
+            onDismissRequest = { showClaimRewardDialog = false },
+            title = { Text("🎁 Welcome Reward!") },
+            text = { Text("Congratulations! Since you were invited by a friend, you are eligible for a 10 Reader Coins welcome bonus.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.claimReferralReward()
+                        showClaimRewardDialog = false
+                    }
+                ) {
+                    Text("Claim 10 Coins")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClaimRewardDialog = false }) {
+                    Text("Maybe Later")
+                }
             }
         )
     }
@@ -393,9 +517,10 @@ fun WithdrawDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double, String, String, String) -> Unit,
     authorPhp: Double,
-    readerPhp: Double
+    readerPhp: Double,
+    referralPhp: Double
 ) {
-    var source by remember { mutableStateOf("AUTHOR") } // "AUTHOR" or "READER"
+    var source by remember { mutableStateOf("AUTHOR") } // "AUTHOR", "READER", or "REFERRAL"
     var amount by remember { mutableStateOf("") }
     var method by remember { mutableStateOf("GCash") }
     var accountInfo by remember { mutableStateOf("") }
@@ -423,19 +548,33 @@ fun WithdrawDialog(
         text = {
             Column {
                 Text("Select Source:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     RadioButton(selected = source == "AUTHOR", onClick = { source = "AUTHOR"; errorMessage = null })
-                    Text("Author Income", fontSize = 13.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Author", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
                     RadioButton(selected = source == "READER", onClick = { source = "READER"; errorMessage = null })
-                    Text("Reader Coins", fontSize = 13.sp)
+                    Text("Reader", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    RadioButton(selected = source == "REFERRAL", onClick = { source = "REFERRAL"; errorMessage = null })
+                    Text("Referral", fontSize = 12.sp)
                 }
                 
-                val currentBalance = if (source == "AUTHOR") authorPhp else readerPhp
-                val minWithdrawal = if (source == "AUTHOR") 59.95 else {
-                    when (method) {
+                val currentBalance = when(source) {
+                    "AUTHOR" -> authorPhp
+                    "READER" -> readerPhp
+                    else -> referralPhp
+                }
+                
+                val minWithdrawal = when(source) {
+                    "AUTHOR" -> 59.95
+                    "READER" -> when (method) {
                         "PayPal" -> 30.0
                         "PayMaya" -> 40.0
+                        "GCash" -> 50.0
+                        else -> 50.0
+                    }
+                    else -> when (method) { // REFERRAL
+                        "PayPal", "PayMaya" -> 40.0
                         "GCash" -> 50.0
                         else -> 50.0
                     }
@@ -530,11 +669,23 @@ fun WithdrawDialog(
                 val amt = amount.toDoubleOrNull() ?: 0.0
                 val phoneRegex = "^09\\d{9}$".toRegex()
                 val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$".toRegex()
-                val currentBalance = if (source == "AUTHOR") authorPhp else readerPhp
-                val minWithdrawal = if (source == "AUTHOR") 59.95 else {
-                    when (method) {
+                
+                val currentBalance = when(source) {
+                    "AUTHOR" -> authorPhp
+                    "READER" -> readerPhp
+                    else -> referralPhp
+                }
+                
+                val minWithdrawal = when(source) {
+                    "AUTHOR" -> 59.95
+                    "READER" -> when (method) {
                         "PayPal" -> 30.0
                         "PayMaya" -> 40.0
+                        "GCash" -> 50.0
+                        else -> 50.0
+                    }
+                    else -> when (method) { // REFERRAL
+                        "PayPal", "PayMaya" -> 40.0
                         "GCash" -> 50.0
                         else -> 50.0
                     }

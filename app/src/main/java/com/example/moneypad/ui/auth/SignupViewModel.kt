@@ -31,9 +31,10 @@ class SignupViewModel(private val repository: MoneyPadRepository) : ViewModel() 
     fun onUsernameChange(v: String) {
         update { copy(username = v, isUsernameTaken = false) }
         usernameJob?.cancel()
-        if (v.isNotBlank()) {
+        val trimmed = v.trim()
+        if (trimmed.isNotBlank()) {
             usernameJob = viewModelScope.launch {
-                val taken = repository.isUsernameTaken(v)
+                val taken = repository.isUsernameTaken(trimmed)
                 update { copy(isUsernameTaken = taken) }
             }
         }
@@ -42,9 +43,10 @@ class SignupViewModel(private val repository: MoneyPadRepository) : ViewModel() 
     fun onEmailChange(v: String) {
         update { copy(email = v, isEmailTaken = false) }
         emailJob?.cancel()
-        if (v.isNotBlank()) {
+        val trimmed = v.trim()
+        if (trimmed.isNotBlank()) {
             emailJob = viewModelScope.launch {
-                val taken = repository.isEmailTaken(v)
+                val taken = repository.isEmailTaken(trimmed)
                 update { copy(isEmailTaken = taken) }
             }
         }
@@ -56,23 +58,28 @@ class SignupViewModel(private val repository: MoneyPadRepository) : ViewModel() 
 
     fun signup() {
         val s = uiState.value
+        val trimmedUsername = s.username.trim()
+        val trimmedEmail = s.email.trim()
+        val trimmedPassword = s.password.trim()
+        val trimmedConfirm = s.confirmPassword.trim()
+
         when {
-            s.username.isBlank() || s.email.isBlank() || s.password.isBlank() ->
+            trimmedUsername.isBlank() || trimmedEmail.isBlank() || trimmedPassword.isBlank() ->
                 return update { copy(error = "All required fields must be filled") }
-            !s.username.matches(Regex("^[a-z].*")) ->
+            !trimmedUsername.matches(Regex("^[a-z].*")) ->
                 return update { copy(error = "Username must start with a lowercase letter") }
-            s.password.length !in 8..16 ->
+            trimmedPassword.length !in 8..16 ->
                 return update { copy(error = "Password must be 8–16 characters") }
-            !s.password.any { it.isUpperCase() } || !s.password.any { it.isLowerCase() } ||
-                    !s.password.any { it.isDigit() } || !s.password.any { !it.isLetterOrDigit() } ->
+            !trimmedPassword.any { it.isUpperCase() } || !trimmedPassword.any { it.isLowerCase() } ||
+                    !trimmedPassword.any { it.isDigit() } || !trimmedPassword.any { !it.isLetterOrDigit() } ->
                 return update { copy(error = "Password needs uppercase, lowercase, number & symbol") }
-            s.password != s.confirmPassword ->
+            trimmedPassword != trimmedConfirm ->
                 return update { copy(error = "Passwords do not match") }
         }
 
         update { copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            val result = repository.signup(s.username, s.email, s.password, s.referrerUsername.trim())
+            val result = repository.signup(trimmedUsername, trimmedEmail, trimmedPassword, s.referrerUsername.trim())
             if (result.isSuccess) {
                 update { copy(isLoading = false, isSuccess = true) }
             } else {

@@ -9,23 +9,46 @@ import com.example.moneypad.data.model.User
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+import java.util.UUID
+
 data class EarningsUiState(
     val user: User? = null,
     val transactions: List<Transaction> = emptyList(),
     val myPublishedStories: List<Story> = emptyList(),
+    val referralCoinsAccumulated: Int = 0,
+    val referralCommission: Double = 0.0,
+    val referralWithdrawals: Double = 0.0,
     val isWithdrawing: Boolean = false,
     val error: String? = null
-)
+) {
+    val referralBalance: Double get() = (referralCoinsAccumulated * 0.01) + referralCommission - referralWithdrawals
+}
 
 class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
-    val uiState: StateFlow<EarningsUiState> = combine(
-        repository.getUser(repository.currentUserId),
-        repository.getTransactions(repository.currentUserId),
-        repository.getPublishedStoriesByAuthor(repository.currentUserId)
-    ) { user, transactions, myPublishedStories ->
-        EarningsUiState(user = user, transactions = transactions, myPublishedStories = myPublishedStories)
-    }.stateIn(viewModelScope, SharingStarted.Lazily, EarningsUiState())
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<EarningsUiState> = repository.getUser(repository.currentUserId)
+        .flatMapLatest { user ->
+            if (user == null) flowOf(EarningsUiState())
+            else {
+                combine(
+                    repository.getTransactions(repository.currentUserId),
+                    repository.getPublishedStoriesByAuthor(repository.currentUserId),
+                    repository.getTotalReferralCoins(user.username),
+                    repository.getReferralAuthorWithdrawals(user.username),
+                    repository.getTotalWithdrawalsBySource(repository.currentUserId, "REFERRAL")
+                ) { transactions: List<Transaction>, stories: List<Story>, coins: Int, authorWithdrawals: Double, refWithdrawals: Double ->
+                    EarningsUiState(
+                        user = user,
+                        transactions = transactions,
+                        myPublishedStories = stories,
+                        referralCoinsAccumulated = coins,
+                        referralCommission = authorWithdrawals * 0.05,
+                        referralWithdrawals = refWithdrawals
+                    )
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EarningsUiState())
 
     // source is either "AUTHOR" or "READER"
     fun withdraw(amount: Double, method: String, accountInfo: String, source: String) {
@@ -42,7 +65,24 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
             }
             
             // Deduct balance and create transaction
-            repository.withdraw(amount, method, accountInfo)
+            repository.withdraw(amount, method, accountInfo, source)
+        }
+    }
+
+    fun updateReferrer(referrerUsername: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.updateReferrer(referrerUsername)
+            if (result.isSuccess) {
+                onSuccess()
+            } else {
+                onError(result.exceptionOrNull()?.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun claimReferralReward() {
+        viewModelScope.launch {
+            repository.claimReferralReward()
         }
     }
 }

@@ -18,7 +18,8 @@ data class OnboardingUiState(
     val availableGenres: List<String> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isComplete: Boolean = false
+    val isComplete: Boolean = false,
+    val user: com.example.moneypad.data.model.User? = null
 )
 
 class OnboardingViewModel(private val repository: MoneyPadRepository) : ViewModel() {
@@ -27,10 +28,11 @@ class OnboardingViewModel(private val repository: MoneyPadRepository) : ViewMode
 
     init {
         viewModelScope.launch {
-            repository.getCurrentUser().filterNotNull().first { user ->
+            repository.getCurrentUser().filterNotNull().collect { user ->
                 _uiState.update { state ->
                     val birthParts = user.birthday.split("-")
                     state.copy(
+                        user = user,
                         currentStep = user.onboardingStep,
                         selectedGender = user.gender,
                         birthYear = birthParts.getOrNull(0) ?: "",
@@ -39,12 +41,19 @@ class OnboardingViewModel(private val repository: MoneyPadRepository) : ViewMode
                         selectedGenres = user.preferredGenres.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     )
                 }
-                true
             }
-            
+        }
+        
+        viewModelScope.launch {
             repository.getAvailableGenres().collect { genres ->
                 _uiState.update { it.copy(availableGenres = genres) }
             }
+        }
+    }
+
+    fun claimReferralReward() {
+        viewModelScope.launch {
+            repository.claimReferralReward()
         }
     }
 

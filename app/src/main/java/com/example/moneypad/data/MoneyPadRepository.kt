@@ -30,6 +30,13 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     var currentUserId: String = sharedPreferences.getString("userId", "") ?: ""
     var currentUsername: String = sharedPreferences.getString("username", "") ?: ""
 
+    companion object {
+        const val OFFICIAL_USER_ID = "moneypad_official_id"
+        const val OFFICIAL_USERNAME = "moneypad"
+        const val OFFICIAL_EMAIL = "moneypad@moneypad.com"
+        const val OFFICIAL_PASSWORD = "@Moneypad3014"
+    }
+
     /** Returns true if there is an active (< 7 days old) saved session */
     fun hasActiveSession(): Boolean {
         if (currentUserId.isEmpty()) return false
@@ -52,6 +59,53 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             .remove("username")
             .remove("loginTimestamp")
             .apply()
+    }
+
+    private suspend fun ensureOfficialUserExists() {
+        val existing = dao.getUser(OFFICIAL_USER_ID).firstOrNull()
+        if (existing == null) {
+            val officialUser = User(
+                id = OFFICIAL_USER_ID,
+                username = OFFICIAL_USERNAME,
+                email = OFFICIAL_EMAIL,
+                password = OFFICIAL_PASSWORD,
+                bio = "Official Money Pad Account",
+                onboardingCompleted = true,
+                onboardingStep = 3
+            )
+            dao.insertUser(officialUser)
+        }
+    }
+
+    // ── Notifications ────────────────────────────────────────────────────────
+
+    fun getNotifications(): Flow<List<Notification>> = dao.getNotificationsForUser(currentUserId)
+
+    fun getUnreadNotificationCount(): Flow<Int> = dao.getUnreadNotificationCount(currentUserId)
+
+    suspend fun markNotificationAsRead(notificationId: String) = dao.markNotificationAsRead(notificationId)
+
+    suspend fun markAllNotificationsAsRead() = dao.markAllNotificationsAsRead(currentUserId)
+
+    private suspend fun notifyFollowers(type: String, story: Story? = null, part: StoryPart? = null) {
+        val followers = dao.getFollowers(currentUserId).firstOrNull() ?: emptyList()
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
+        followers.forEach { follower ->
+            dao.insertNotification(
+                Notification(
+                    id = UUID.randomUUID().toString(),
+                    userId = follower.id,
+                    type = type,
+                    actorId = currentUserId,
+                    actorName = currentUsername,
+                    actorProfileImageUrl = currentUser?.profileImageUrl,
+                    storyId = story?.id,
+                    storyTitle = story?.title,
+                    partId = part?.id,
+                    partTitle = part?.title
+                )
+            )
+        }
     }
 
     // ── Auth ──────────────────────────────────────────────────────────────────
@@ -88,9 +142,21 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             email = email,
             password = password,
             referredBy = validatedReferrer,
+            signupTimestamp = System.currentTimeMillis(),
             loginTimestamp = System.currentTimeMillis()
         )
         dao.insertUser(user)
+
+        // Welcome Notification
+        dao.insertNotification(
+            Notification(
+                id = UUID.randomUUID().toString(),
+                userId = user.id,
+                type = "WELCOME",
+                actorId = "SYSTEM",
+                actorName = "Money Pad Team"
+            )
+        )
 
         // Credit referrer
         if (validatedReferrer.isNotBlank()) {
@@ -100,7 +166,28 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         currentUserId = user.id
         currentUsername = user.username
         saveLoginState(currentUserId, currentUsername)
+
+        // Auto-follow official account
+        followUser(OFFICIAL_USER_ID)
+
         return Result.success(user)
+    }
+
+    suspend fun updateReferrer(referrerUsername: String): Result<Unit> {
+        val referrer = dao.getUserByUsername(referrerUsername)
+        if (referrer == null) return Result.failure(Exception("Referrer username not found"))
+        if (referrerUsername == currentUsername) return Result.failure(Exception("You cannot refer yourself"))
+        
+        dao.updateReferrer(currentUserId, referrerUsername)
+        dao.incrementReferralCount(referrerUsername)
+        return Result.success(Unit)
+    }
+
+    suspend fun claimReferralReward() {
+        if (currentUserId.isNotEmpty()) {
+            dao.updateReaderCoins(currentUserId, 10)
+            dao.markReferralRewardClaimed(currentUserId)
+        }
     }
 
     fun logout() {
@@ -110,6 +197,22 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     }
 
     suspend fun login(identifier: String, password: String): Result<User> {
+        // Handle hardcoded official user login
+        if ((identifier == OFFICIAL_USERNAME || identifier == OFFICIAL_EMAIL) && password == OFFICIAL_PASSWORD) {
+            ensureOfficialUserExists()
+            val user = dao.getUser(OFFICIAL_USER_ID).firstOrNull()
+            return if (user != null) {
+                currentUserId = user.id
+                currentUsername = user.username
+                val now = System.currentTimeMillis()
+                dao.updateLoginTimestamp(user.id, now)
+                saveLoginState(currentUserId, currentUsername)
+                Result.success(user)
+            } else {
+                Result.failure(Exception("Critical Error: Official user not found"))
+            }
+        }
+
         val user = dao.login(identifier, password)
         return if (user != null) {
             currentUserId = user.id
@@ -128,6 +231,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     fun getCurrentUser(): Flow<User?> = dao.getUser(currentUserId)
 
     suspend fun initUser() {
+        // Ensure official user exists
+        ensureOfficialUserExists()
+
         // Expire session if older than 7 days
         if (currentUserId.isNotEmpty() && !hasActiveSession()) {
             logout()
@@ -255,9 +361,23 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.insertFollow(Follow(currentUserId, followedId))
         dao.updateFollowing(currentUserId, 1)
         dao.updateFollowers(followedId, 1)
+
+        // Notify the followed user
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
+        dao.insertNotification(
+            Notification(
+                id = UUID.randomUUID().toString(),
+                userId = followedId,
+                type = "FOLLOW",
+                actorId = currentUserId,
+                actorName = currentUsername,
+                actorProfileImageUrl = currentUser?.profileImageUrl
+            )
+        )
     }
 
     suspend fun unfollowUser(followedId: String) {
+        if (followedId == OFFICIAL_USER_ID) return // Cannot unfollow official account
         dao.deleteFollow(currentUserId, followedId)
         dao.updateFollowing(currentUserId, -1)
         dao.updateFollowers(followedId, -1)
@@ -282,15 +402,18 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         title: String, genres: String, overview: String, coverImageUrl: String?,
         isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ) {
-        dao.insertStory(
-            Story(
-                id = UUID.randomUUID().toString(),
-                authorId = currentUserId, authorName = currentUsername,
-                title = title, genres = genres, overview = overview,
-                coverImageUrl = coverImageUrl,
-                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
-            )
+        val storyId = UUID.randomUUID().toString()
+        val story = Story(
+            id = storyId,
+            authorId = currentUserId, authorName = currentUsername,
+            title = title, genres = genres, overview = overview,
+            coverImageUrl = coverImageUrl,
+            isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
         )
+        dao.insertStory(story)
+        if (isPublished) {
+            notifyFollowers("NEW_STORY", story = story)
+        }
     }
 
     suspend fun createStoryAndReturnId(
@@ -298,25 +421,37 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ): String {
         val id = UUID.randomUUID().toString()
-        dao.insertStory(
-            Story(
-                id = id,
-                authorId = currentUserId, authorName = currentUsername,
-                title = title, genres = genres, overview = overview,
-                coverImageUrl = coverImageUrl,
-                isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
-                lastUpdatedAt = System.currentTimeMillis()
-            )
+        val story = Story(
+            id = id,
+            authorId = currentUserId, authorName = currentUsername,
+            title = title, genres = genres, overview = overview,
+            coverImageUrl = coverImageUrl,
+            isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
+            lastUpdatedAt = System.currentTimeMillis()
         )
+        dao.insertStory(story)
+        if (isPublished) {
+            notifyFollowers("NEW_STORY", story = story)
+        }
         return id
     }
 
-    suspend fun publishStory(storyId: String) = dao.publishStory(storyId, System.currentTimeMillis())
+    suspend fun publishStory(storyId: String) {
+        val story = dao.getStoryById(storyId)
+        if (story != null && !story.isPublished) {
+            dao.publishStory(storyId, System.currentTimeMillis())
+            notifyFollowers("NEW_STORY", story = story)
+        }
+    }
 
     suspend fun unpublishStory(storyId: String) = dao.unpublishStory(storyId, System.currentTimeMillis())
 
     suspend fun updateStory(story: Story) {
+        val oldStory = dao.getStoryById(story.id)
         dao.insertStory(story)
+        if (story.isPublished && (oldStory == null || !oldStory.isPublished)) {
+            notifyFollowers("NEW_STORY", story = story)
+        }
     }
 
     suspend fun deleteStory(storyId: String) {
@@ -334,36 +469,55 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null) {
         val now = System.currentTimeMillis()
-        dao.insertStoryPart(
-            StoryPart(
-                id = partId ?: UUID.randomUUID().toString(),
-                storyId = storyId, title = title, content = content, order = order,
-                publishedAt = now,
-                isPublished = isPublished,
-                headerImageUrl = headerImageUrl
-            )
+        val part = StoryPart(
+            id = partId ?: UUID.randomUUID().toString(),
+            storyId = storyId, title = title, content = content, order = order,
+            publishedAt = now,
+            isPublished = isPublished,
+            headerImageUrl = headerImageUrl
         )
+        dao.insertStoryPart(part)
+        
         if (isPublished) {
-            dao.publishStory(storyId, now)
+            val story = dao.getStoryById(storyId)
+            if (story != null) {
+                if (!story.isPublished) {
+                    dao.publishStory(storyId, now)
+                    notifyFollowers("NEW_STORY", story = story)
+                } else {
+                    dao.updateStoryLastUpdated(storyId, now)
+                    notifyFollowers("NEW_PART", story = story, part = part)
+                }
+            }
         }
     }
 
     suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean, headerImageUrl: String? = null) {
         val now = System.currentTimeMillis()
-        dao.insertStoryPart(
-            StoryPart(
-                id = partId,
-                storyId = storyId,
-                title = title,
-                content = content,
-                order = order,
-                publishedAt = now,
-                isPublished = isPublished,
-                headerImageUrl = headerImageUrl
-            )
+        val oldPart = dao.getStoryPartById(partId)
+        val part = StoryPart(
+            id = partId,
+            storyId = storyId,
+            title = title,
+            content = content,
+            order = order,
+            publishedAt = now,
+            isPublished = isPublished,
+            headerImageUrl = headerImageUrl
         )
+        dao.insertStoryPart(part)
+
         if (isPublished) {
-            dao.publishStory(storyId, now)
+            val story = dao.getStoryById(storyId)
+            if (story != null) {
+                if (!story.isPublished) {
+                    dao.publishStory(storyId, now)
+                    notifyFollowers("NEW_STORY", story = story)
+                } else if (oldPart == null || !oldPart.isPublished) {
+                    dao.updateStoryLastUpdated(storyId, now)
+                    notifyFollowers("NEW_PART", story = story, part = part)
+                }
+            }
         } else {
             val publishedCount = dao.getPublishedPartCount(storyId)
             if (publishedCount == 0) {
@@ -428,10 +582,20 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         
         if (source == "AUTHOR") {
             dao.deductAuthorIncome(currentUserId, amount)
+            // Handle 5% commission for the referrer
+            val user = dao.getUser(currentUserId).firstOrNull()
+            if (user != null && user.referredBy.isNotBlank()) {
+                val commission = amount * 0.05
+                // We don't need a separate dao call to add commission if we calculate it on the fly, 
+                // but we need to ensure the referral stats correctly reflect this as "earned".
+            }
         } else if (source == "READER") {
             // For readers, amount is in PHP, coins = amount * 100
             val coinsToDeduct = (amount * 100).toInt()
             dao.deductReaderCoins(currentUserId, coinsToDeduct)
+        } else if (source == "REFERRAL") {
+            // No direct deduction from user entity fields needed as it is calculated from transactions on the fly.
+            // Just need to ensure we don't withdraw more than available.
         } else {
             dao.deductBalance(currentUserId, amount)
         }
@@ -440,7 +604,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             Transaction(
                 id = UUID.randomUUID().toString(),
                 userId = currentUserId, amount = amount,
-                method = method, accountInfo = accountInfo
+                method = method, accountInfo = accountInfo,
+                source = source
             )
         )
         return true
@@ -448,6 +613,15 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getTransactions(userId: String): Flow<List<Transaction>> =
         dao.getTransactionsForUser(userId)
+
+    fun getTotalWithdrawalsBySource(userId: String, source: String): Flow<Double> =
+        dao.getTotalWithdrawalsBySource(userId, source).map { it ?: 0.0 }
+
+    fun getTotalReferralCoins(username: String): Flow<Int> =
+        dao.getTotalReferralCoins(username).map { it ?: 0 }
+
+    fun getReferralAuthorWithdrawals(username: String): Flow<Double> =
+        dao.getReferralAuthorWithdrawals(username).map { it ?: 0.0 }
 
     fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> =
         dao.searchStoriesExcludingAuthor(query, genre, currentUserId).map { stories ->
@@ -558,4 +732,6 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     fun getLibraryStories(): Flow<List<Story>> = dao.getLibraryStories(currentUserId)
 
     fun isStoryInLibrary(storyId: String): Flow<Boolean> = dao.isStoryInLibrary(currentUserId, storyId)
+
+    fun isPartRead(partId: String): Flow<Boolean> = dao.isPartRead(currentUserId, partId)
 }
