@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +21,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import coil.compose.AsyncImage
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Notification
@@ -35,6 +40,7 @@ fun NotificationScreen(
     onBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
     onNavigateToAuthorProfile: (String) -> Unit,
+    onNavigateToConversation: (String) -> Unit,
     viewModel: StoryViewModel
 ) {
     val notifications by viewModel.notifications.collectAsState()
@@ -87,8 +93,8 @@ fun NotificationScreen(
                             viewModel.markNotificationAsRead(notification.id)
                             when (notification.type) {
                                 "FOLLOW" -> onNavigateToAuthorProfile(notification.actorId)
-                                "NEW_STORY", "NEW_PART" -> notification.storyId?.let { onNavigateToStoryDetail(it) }
-                                "CONVERSATION", "REPLY" -> notification.storyId?.let { onNavigateToAuthorProfile(it) }
+                                "NEW_STORY", "NEW_PART", "LIKE", "READ", "REVIEW" -> notification.storyId?.let { onNavigateToStoryDetail(it) }
+                                "CONVERSATION", "REPLY" -> notification.storyId?.let { onNavigateToConversation(it) }
                             }
                         }
                     )
@@ -172,6 +178,17 @@ fun NotificationItem(
                 text = text,
                 isOfficial = notification.actorId == MoneyPadRepository.OFFICIAL_USER_ID
             )
+
+            if (!notification.content.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = notification.content,
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
             
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -195,26 +212,34 @@ fun NotificationItem(
 @Composable
 fun NotificationText(text: String, isOfficial: Boolean = false) {
     val parts = text.split("**")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.material3.Text(
-            text = androidx.compose.ui.text.buildAnnotatedString {
-                parts.forEachIndexed { index, part ->
-                    if (index % 2 == 1) {
-                        pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
-                        append(part)
-                        pop()
-                    } else {
-                        append(part)
-                    }
+    val annotatedString = buildAnnotatedString {
+        parts.forEachIndexed { index, part ->
+            if (index % 2 == 1) {
+                pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+                append(part)
+                pop()
+                if (isOfficial && index == 1) {
+                    append(" ")
+                    appendInlineContent("verified", "[verified]")
                 }
-            },
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-        if (isOfficial) {
-            Spacer(modifier = Modifier.width(4.dp))
-            VerifiedIcon(modifier = Modifier.size(14.dp))
+            } else {
+                append(part)
+            }
         }
     }
+
+    val inlineContent = mapOf(
+        "verified" to InlineTextContent(
+            Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.Center)
+        ) {
+            VerifiedIcon(modifier = Modifier.size(14.dp))
+        }
+    )
+
+    Text(
+        text = annotatedString,
+        inlineContent = inlineContent,
+        fontSize = 14.sp,
+        lineHeight = 20.sp
+    )
 }

@@ -46,6 +46,7 @@ fun StoryViewScreen(
     onNavigateBack: () -> Unit,
     onNavigateToReadPart: (String, String) -> Unit,
     onNavigateToRelatedStory: (String) -> Unit,
+    onNavigateToAuthorProfile: (String) -> Unit,
     viewModel: StoryViewModel
 ) {
     val story by viewModel.currentStory.collectAsState()
@@ -58,6 +59,9 @@ fun StoryViewScreen(
 
     var showMenu by remember { mutableStateOf(false) }
     var showReviewDialog by remember { mutableStateOf(false) }
+    var showAlbumSelectionDialog by remember { mutableStateOf(false) }
+    val albums by viewModel.albums.collectAsState()
+
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
     val isLiked by viewModel.isStoryLiked(storyId).collectAsState(initial = false)
@@ -68,6 +72,55 @@ fun StoryViewScreen(
 
     LaunchedEffect(storyId) {
         viewModel.getStoryById(storyId)
+    }
+
+    if (showAlbumSelectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showAlbumSelectionDialog = false },
+            title = { Text("Add to Album") },
+            text = {
+                if (albums.isEmpty()) {
+                    Text("You don't have any albums yet. Create one in your Library.")
+                } else {
+                    LazyColumn {
+                        items(albums) { album ->
+                            var isInAlbum by remember { mutableStateOf(false) }
+                            LaunchedEffect(album.id) {
+                                isInAlbum = viewModel.isStoryInAlbum(album.id, storyId)
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (isInAlbum) {
+                                            viewModel.removeStoryFromAlbum(album.id, storyId)
+                                            isInAlbum = false
+                                        } else {
+                                            viewModel.addStoryToAlbum(album.id, storyId)
+                                            isInAlbum = true
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isInAlbum,
+                                    onCheckedChange = null // Handled by row click
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(album.name)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAlbumSelectionDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -90,6 +143,13 @@ fun StoryViewScreen(
                         DropdownMenuItem(
                             text = { Text("Share") },
                             onClick = { showMenu = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to Album") },
+                            onClick = {
+                                showMenu = false
+                                showAlbumSelectionDialog = true
+                            }
                         )
                         DropdownMenuItem(
                             text = { Text("Make a review") },
@@ -251,7 +311,10 @@ fun StoryViewScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { onNavigateToAuthorProfile(currentStory.authorId) }
+                                ) {
                                     Box(
                                         modifier = Modifier
                                             .size(24.dp)

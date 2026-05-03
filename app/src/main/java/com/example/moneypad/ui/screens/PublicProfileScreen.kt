@@ -40,7 +40,8 @@ fun PublicProfileScreen(
     onNavigateToStoryDetail: (String) -> Unit,
     onNavigateToAuthorProfile: (String) -> Unit,
     storyViewModel: StoryViewModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    initialTab: Int = 0
 ) {
     val author by profileViewModel.getUser(authorId).collectAsState(initial = null)
     val authorStories by storyViewModel.getStoriesByAuthor(authorId).collectAsState(initial = emptyList())
@@ -50,7 +51,7 @@ fun PublicProfileScreen(
     val authorFollowing by profileViewModel.getFollowing(authorId).collectAsState(initial = emptyList())
     val myFollowing by profileViewModel.following.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
     val tabs = listOf("About", "Conversation", "Stories")
     var showFollowersDialog by remember { mutableStateOf(false) }
     var showFollowingDialog by remember { mutableStateOf(false) }
@@ -396,6 +397,10 @@ fun ConversationItem(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
+                if (conv.isSenderVerified) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    VerifiedIcon(modifier = Modifier.size(14.dp))
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = { showReplyInput = !showReplyInput }) {
                     Text("Reply", fontSize = 12.sp)
@@ -435,7 +440,13 @@ fun ConversationItem(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    if (reply.isSenderVerified) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                                    }
+                                }
                                 Text(reply.message, fontSize = 13.sp)
                             }
                         }

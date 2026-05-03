@@ -114,12 +114,20 @@ fun ProfileNavigation(
                 viewModel = profileViewModel,
                 themeViewModel = themeViewModel,
                 onLogout = onLogout,
-                onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") }
+                onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") },
+                onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") }
             )
         }
-        composable("author_profile/{authorId}") { backStackEntry ->
+        composable(
+            "author_profile/{authorId}?initialTab={initialTab}",
+            arguments = listOf(
+                androidx.navigation.navArgument("authorId") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
+            )
+        ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
+            val initialTab = backStackEntry.arguments?.getInt("initialTab") ?: 0
             PublicProfileScreen(
                 authorId = authorId,
                 onNavigateBack = { profileNavController.popBackStack() },
@@ -140,7 +148,8 @@ fun ProfileNavigation(
                     }
                 },
                 storyViewModel = storyViewModel,
-                profileViewModel = profileViewModel
+                profileViewModel = profileViewModel,
+                initialTab = initialTab
             )
         }
         composable("story_view/{storyId}") { backStackEntry ->
@@ -154,6 +163,19 @@ fun ProfileNavigation(
                 },
                 onNavigateToRelatedStory = { relatedId ->
                     profileNavController.navigate("story_view/$relatedId")
+                },
+                onNavigateToAuthorProfile = { id ->
+                    if (id == storyViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        profileNavController.navigate("author_profile/$id")
+                    }
                 },
                 viewModel = storyViewModel
             )
@@ -222,6 +244,9 @@ fun ExploreNavigation(
                         exploreNavController.navigate("author_profile/$id")
                     }
                 },
+                onNavigateToConversation = { authorId ->
+                    exploreNavController.navigate("author_profile/$authorId?initialTab=1")
+                },
                 viewModel = storyViewModel
             )
         }
@@ -236,6 +261,19 @@ fun ExploreNavigation(
                 },
                 onNavigateToRelatedStory = { relatedId ->
                     exploreNavController.navigate("story_view/$relatedId")
+                },
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == storyViewModel.currentUserId) {
+                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        exploreNavController.navigate("author_profile/$id")
+                    }
                 },
                 viewModel = storyViewModel
             )
@@ -252,9 +290,16 @@ fun ExploreNavigation(
                 viewModel = storyViewModel
             )
         }
-        composable("author_profile/{authorId}") { backStackEntry ->
+        composable(
+            "author_profile/{authorId}?initialTab={initialTab}",
+            arguments = listOf(
+                androidx.navigation.navArgument("authorId") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
+            )
+        ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
+            val initialTab = backStackEntry.arguments?.getInt("initialTab") ?: 0
             PublicProfileScreen(
                 authorId = authorId,
                 onNavigateBack = { exploreNavController.popBackStack() },
@@ -273,7 +318,8 @@ fun ExploreNavigation(
                     }
                 },
                 storyViewModel = storyViewModel,
-                profileViewModel = viewModel(factory = factory)
+                profileViewModel = viewModel(factory = factory),
+                initialTab = initialTab
             )
         }
     }

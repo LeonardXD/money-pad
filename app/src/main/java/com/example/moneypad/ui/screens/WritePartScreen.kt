@@ -172,10 +172,28 @@ fun WritePartScreen(
     fun toggleStyle(style: SpanStyle) {
         val selection = content.selection
         if (!selection.collapsed) {
-            val newAnnotatedString = AnnotatedString.Builder(content.annotatedString).apply {
-                addStyle(style, selection.start, selection.end)
-            }.toAnnotatedString()
-            content = content.copy(annotatedString = newAnnotatedString)
+            val annotatedString = content.annotatedString
+            val currentStyles = annotatedString.spanStyles.filter { 
+                it.start < selection.end && it.end > selection.start && it.item == style 
+            }
+
+            if (currentStyles.isNotEmpty()) {
+                // Style exists, remove it
+                val newStyles = annotatedString.spanStyles.filter { 
+                    !(it.start < selection.end && it.end > selection.start && it.item == style)
+                }
+                val builder = AnnotatedString.Builder(annotatedString.text)
+                newStyles.forEach {
+                    builder.addStyle(it.item, it.start, it.end)
+                }
+                content = content.copy(annotatedString = builder.toAnnotatedString())
+            } else {
+                // Style doesn't exist, add it
+                val newAnnotatedString = AnnotatedString.Builder(annotatedString).apply {
+                    addStyle(style, selection.start, selection.end)
+                }.toAnnotatedString()
+                content = content.copy(annotatedString = newAnnotatedString)
+            }
         } else {
             activeStyles = if (activeStyles.contains(style)) {
                 activeStyles - style

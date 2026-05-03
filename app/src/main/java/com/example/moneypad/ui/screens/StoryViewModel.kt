@@ -354,4 +354,40 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
             repository.markAllNotificationsAsRead()
         }
     }
+
+    // ── Albums ────────────────────────────────────────────────────────────────
+
+    val albums = repository.getAlbums().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun createAlbum(name: String, description: String = "") {
+        viewModelScope.launch {
+            repository.createAlbum(name, description)
+        }
+    }
+
+    fun deleteAlbum(albumId: String) {
+        viewModelScope.launch {
+            repository.deleteAlbum(albumId)
+        }
+    }
+
+    fun addStoryToAlbum(albumId: String, storyId: String) {
+        viewModelScope.launch {
+            repository.addStoryToAlbum(albumId, storyId)
+        }
+    }
+
+    fun removeStoryFromAlbum(albumId: String, storyId: String) {
+        viewModelScope.launch {
+            repository.removeStoryFromAlbum(albumId, storyId)
+        }
+    }
+
+    fun getStoriesForAlbum(albumId: String): Flow<List<Story>> = repository.getStoriesForAlbum(albumId)
+
+    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean = repository.isStoryInAlbum(albumId, storyId)
 }

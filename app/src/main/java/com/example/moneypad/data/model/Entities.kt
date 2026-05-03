@@ -41,7 +41,8 @@ data class Conversation(
     val message: String,
     val senderProfileImageUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val parentId: String? = null
+    val parentId: String? = null,
+    val isSenderVerified: Boolean = false
 )
 
 @Entity(tableName = "follows", primaryKeys = ["followerId", "followedId"])
@@ -141,6 +142,23 @@ data class LibraryStory(
     val downloadedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "albums")
+data class Album(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val name: String,
+    val description: String = "",
+    val coverImageUrl: String? = null,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "album_stories", primaryKeys = ["albumId", "storyId"])
+data class AlbumStory(
+    val albumId: String,
+    val storyId: String,
+    val addedAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "notifications")
 data class Notification(
     @PrimaryKey val id: String,
@@ -153,6 +171,7 @@ data class Notification(
     val storyTitle: String? = null,
     val partId: String? = null,
     val partTitle: String? = null,
+    val content: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val isRead: Boolean = false
 )

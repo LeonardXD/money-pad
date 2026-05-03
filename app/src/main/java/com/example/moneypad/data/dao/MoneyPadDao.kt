@@ -323,4 +323,26 @@ interface MoneyPadDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM library_stories WHERE userId = :userId AND storyId = :storyId)")
     fun isStoryInLibrary(userId: String, storyId: String): Flow<Boolean>
+
+    // ── Albums ────────────────────────────────────────────────────────────────
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlbum(album: com.example.moneypad.data.model.Album)
+
+    @Query("DELETE FROM albums WHERE id = :albumId")
+    suspend fun deleteAlbum(albumId: String)
+
+    @Query("SELECT * FROM albums WHERE userId = :userId ORDER BY createdAt DESC")
+    fun getAlbumsForUser(userId: String): Flow<List<com.example.moneypad.data.model.Album>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlbumStory(albumStory: com.example.moneypad.data.model.AlbumStory)
+
+    @Query("DELETE FROM album_stories WHERE albumId = :albumId AND storyId = :storyId")
+    suspend fun deleteAlbumStory(albumId: String, storyId: String)
+
+    @Query("SELECT * FROM stories WHERE id IN (SELECT storyId FROM album_stories WHERE albumId = :albumId ORDER BY addedAt DESC)")
+    fun getStoriesForAlbum(albumId: String): Flow<List<Story>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM album_stories WHERE albumId = :albumId AND storyId = :storyId)")
+    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean
 }

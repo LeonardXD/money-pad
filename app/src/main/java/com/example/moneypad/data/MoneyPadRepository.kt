@@ -158,6 +158,25 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             )
         )
 
+        // Previous Announcements Notification for New User
+        val announcements = dao.getConversationsForAuthor(OFFICIAL_USER_ID).firstOrNull() ?: emptyList()
+        announcements.forEach { announcement ->
+            dao.insertNotification(
+                Notification(
+                    id = UUID.randomUUID().toString(),
+                    userId = user.id,
+                    type = "CONVERSATION",
+                    actorId = OFFICIAL_USER_ID,
+                    actorName = OFFICIAL_USERNAME,
+                    actorProfileImageUrl = null, // Can fetch if needed, but official logo is default
+                    storyId = OFFICIAL_USER_ID,
+                    partId = announcement.id,
+                    content = announcement.message,
+                    timestamp = announcement.timestamp
+                )
+            )
+        }
+
         // Credit referrer
         if (validatedReferrer.isNotBlank()) {
             dao.incrementReferralCount(validatedReferrer)
@@ -562,11 +581,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 // Came back after at least 30 minutes - Repeated View
                 dao.incrementRepeatedViews(storyId)
                 dao.incrementReadCount(storyId)
-
-                // Fetch author's verification status
-                val author = dao.getUser(story.authorId).firstOrNull()
-                val rate = if (author?.isVerified == true) 0.0005 else 0.0003
-                dao.updateAuthorIncome(story.authorId, rate)
+                
+                // Author will earn only to the unique views of his/her story, repeated views will not count anymore.
+                // So we do NOT update author income here.
             }
             // If they read another part within 30 minutes, we don't increment anything
             // to avoid over-counting during a single session.
@@ -655,7 +672,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 authorId = authorId, senderId = currentUserId,
                 senderName = currentUsername, message = message, 
                 senderProfileImageUrl = currentUser?.profileImageUrl,
-                parentId = parentId
+                parentId = parentId,
+                isSenderVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
             )
         )
 
@@ -674,7 +692,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                             actorId = currentUserId,
                             actorName = currentUsername,
                             actorProfileImageUrl = currentUser?.profileImageUrl,
-                            storyId = authorId // Target profile ID
+                            storyId = authorId, // Target profile ID
+                            partId = conversationId, // For direct navigation
+                            content = message
                         )
                     )
                 }
@@ -688,7 +708,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorId = currentUserId,
                         actorName = currentUsername,
                         actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId // Target profile ID
+                        storyId = authorId, // Target profile ID
+                        partId = conversationId, // For direct navigation
+                        content = message
                     )
                 )
             }
@@ -704,7 +726,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorId = currentUserId,
                         actorName = currentUsername,
                         actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId // Target profile ID
+                        storyId = authorId, // Target profile ID
+                        partId = conversationId, // For direct navigation
+                        content = message
                     )
                 )
             }
@@ -720,7 +744,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorId = currentUserId,
                         actorName = currentUsername,
                         actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId // Target profile ID
+                        storyId = authorId, // Target profile ID
+                        partId = conversationId, // For direct navigation
+                        content = message
                     )
                 )
             }
@@ -813,4 +839,34 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     fun isStoryInLibrary(storyId: String): Flow<Boolean> = dao.isStoryInLibrary(currentUserId, storyId)
 
     fun isPartRead(partId: String): Flow<Boolean> = dao.isPartRead(currentUserId, partId)
+
+    // ── Albums ────────────────────────────────────────────────────────────────
+
+    suspend fun createAlbum(name: String, description: String = "") {
+        val album = Album(
+            id = UUID.randomUUID().toString(),
+            userId = currentUserId,
+            name = name,
+            description = description
+        )
+        dao.insertAlbum(album)
+    }
+
+    suspend fun deleteAlbum(albumId: String) {
+        dao.deleteAlbum(albumId)
+    }
+
+    fun getAlbums(): Flow<List<Album>> = dao.getAlbumsForUser(currentUserId)
+
+    suspend fun addStoryToAlbum(albumId: String, storyId: String) {
+        dao.insertAlbumStory(AlbumStory(albumId, storyId))
+    }
+
+    suspend fun removeStoryFromAlbum(albumId: String, storyId: String) {
+        dao.deleteAlbumStory(albumId, storyId)
+    }
+
+    fun getStoriesForAlbum(albumId: String): Flow<List<Story>> = dao.getStoriesForAlbum(albumId)
+
+    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean = dao.isStoryInAlbum(albumId, storyId)
 }

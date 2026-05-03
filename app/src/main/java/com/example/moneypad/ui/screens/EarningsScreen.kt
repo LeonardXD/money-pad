@@ -103,6 +103,18 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                 val gracePeriod = 24 * 60 * 60 * 1000L
                 if (now - user.signupTimestamp < gracePeriod) {
                     item {
+                        val expiryTime = user.signupTimestamp + gracePeriod
+                        var remainingTime by remember { 
+                            mutableLongStateOf(expiryTime - System.currentTimeMillis()) 
+                        }
+
+                        LaunchedEffect(Unit) {
+                            while (remainingTime > 0) {
+                                kotlinx.coroutines.delay(1000)
+                                remainingTime = expiryTime - System.currentTimeMillis()
+                            }
+                        }
+
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -111,19 +123,35 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Redeem,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Default.Redeem,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            "Welcome Bonus!",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    
+                                    val hours = remainingTime / (1000 * 60 * 60)
+                                    val minutes = (remainingTime / (1000 * 60)) % 60
+                                    val seconds = (remainingTime / 1000) % 60
                                     Text(
-                                        "Welcome Bonus!",
+                                        text = String.format("%02d:%02d:%02d", hours, minutes, seconds),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        fontSize = 14.sp
                                     )
                                 }
                                 Text(

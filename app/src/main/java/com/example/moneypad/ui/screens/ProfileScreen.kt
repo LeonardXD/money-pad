@@ -45,7 +45,8 @@ fun ProfileScreen(
     viewModel: ProfileViewModel,
     themeViewModel: ThemeViewModel,
     onLogout: () -> Unit,
-    onNavigateToPublicProfile: (String) -> Unit
+    onNavigateToPublicProfile: (String) -> Unit,
+    onNavigateToStoryDetail: (String) -> Unit
 ) {
     val user by viewModel.user.collectAsState()
     val storiesPublished by viewModel.storiesPublished.collectAsState()
@@ -337,7 +338,11 @@ fun ProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             row.forEach { story ->
-                                ProfileStoryItem(story = story, modifier = Modifier.weight(1f))
+                                ProfileStoryItem(
+                                    story = story, 
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onNavigateToStoryDetail(story.id) }
+                                )
                             }
                             if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
@@ -509,9 +514,9 @@ fun UserListDialog(
 }
 
 @Composable
-private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier) {
+private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier, onClick: () -> Unit = {}) {
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -586,6 +591,10 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
+                if (conv.isSenderVerified) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    VerifiedIcon(modifier = Modifier.size(14.dp))
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = { 
                     showReplyInput = !showReplyInput
@@ -622,7 +631,13 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    if (reply.isSenderVerified) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                                    }
+                                }
                                 Text(reply.message, fontSize = 13.sp)
                             }
                         }
