@@ -57,7 +57,26 @@ interface MoneyPadDao {
     @Query("UPDATE users SET readerCoins = readerCoins - :amount WHERE id = :userId")
     suspend fun deductReaderCoins(userId: String, amount: Int)
 
-    @Query("SELECT SUM(totalReaderCoins) FROM users WHERE referredBy = :username")
+    @Query("""
+        SELECT SUM(
+            CASE 
+                WHEN read_count >= 110 THEN 475
+                WHEN read_count >= 80 THEN 295
+                WHEN read_count >= 40 THEN 175
+                WHEN read_count >= 25 THEN 95
+                WHEN read_count >= 15 THEN 45
+                WHEN read_count >= 5 THEN 15
+                ELSE 0 
+            END
+        )
+        FROM (
+            SELECT u.id, COUNT(DISTINCT urp.partId) as read_count
+            FROM users u
+            LEFT JOIN user_read_parts urp ON u.id = urp.userId
+            WHERE u.referredBy = :username
+            GROUP BY u.id
+        )
+    """)
     fun getTotalReferralCoins(username: String): Flow<Int?>
 
     @Query("SELECT SUM(amount) FROM transactions WHERE userId IN (SELECT id FROM users WHERE referredBy = :username) AND userId IN (SELECT DISTINCT authorId FROM stories) AND source = 'AUTHOR'")
@@ -324,25 +343,26 @@ interface MoneyPadDao {
     @Query("SELECT EXISTS(SELECT 1 FROM library_stories WHERE userId = :userId AND storyId = :storyId)")
     fun isStoryInLibrary(userId: String, storyId: String): Flow<Boolean>
 
-    // ── Albums ────────────────────────────────────────────────────────────────
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbum(album: com.example.moneypad.data.model.Album)
-
-    @Query("DELETE FROM albums WHERE id = :albumId")
-    suspend fun deleteAlbum(albumId: String)
-
-    @Query("SELECT * FROM albums WHERE userId = :userId ORDER BY createdAt DESC")
-    fun getAlbumsForUser(userId: String): Flow<List<com.example.moneypad.data.model.Album>>
+    // ── Reading Lists ─────────────────────────────────────────────────────────
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAlbumStory(albumStory: com.example.moneypad.data.model.AlbumStory)
+    suspend fun insertReadingList(readingList: com.example.moneypad.data.model.ReadingList)
 
-    @Query("DELETE FROM album_stories WHERE albumId = :albumId AND storyId = :storyId")
-    suspend fun deleteAlbumStory(albumId: String, storyId: String)
+    @Query("DELETE FROM reading_lists WHERE id = :listId")
+    suspend fun deleteReadingList(listId: String)
 
-    @Query("SELECT * FROM stories WHERE id IN (SELECT storyId FROM album_stories WHERE albumId = :albumId ORDER BY addedAt DESC)")
-    fun getStoriesForAlbum(albumId: String): Flow<List<Story>>
+    @Query("SELECT * FROM reading_lists WHERE userId = :userId ORDER BY createdAt DESC")
+    fun getReadingListsForUser(userId: String): Flow<List<com.example.moneypad.data.model.ReadingList>>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM album_stories WHERE albumId = :albumId AND storyId = :storyId)")
-    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertReadingListStory(readingListStory: com.example.moneypad.data.model.ReadingListStory)
+
+    @Query("DELETE FROM reading_list_stories WHERE listId = :listId AND storyId = :storyId")
+    suspend fun deleteReadingListStory(listId: String, storyId: String)
+
+    @Query("SELECT * FROM stories WHERE id IN (SELECT storyId FROM reading_list_stories WHERE listId = :listId ORDER BY addedAt DESC)")
+    fun getStoriesForReadingList(listId: String): Flow<List<Story>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM reading_list_stories WHERE listId = :listId AND storyId = :storyId)")
+    suspend fun isStoryInReadingList(listId: String, storyId: String): Boolean
 }

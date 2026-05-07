@@ -35,6 +35,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         const val OFFICIAL_USERNAME = "moneypad"
         const val OFFICIAL_EMAIL = "moneypad@moneypad.com"
         const val OFFICIAL_PASSWORD = "@Moneypad3014"
+        const val MIN_PUBLISHED_PARTS_TO_PUBLISH_STORY = 1
     }
 
     /** Returns true if there is an active (< 7 days old) saved session */
@@ -455,12 +456,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         return id
     }
 
-    suspend fun publishStory(storyId: String) {
+    suspend fun publishStory(storyId: String): Boolean {
         val story = dao.getStoryById(storyId)
-        if (story != null && !story.isPublished) {
-            dao.publishStory(storyId, System.currentTimeMillis())
-            notifyFollowers("NEW_STORY", story = story)
+        if (story == null || story.isPublished || !canPublishStory(storyId)) {
+            return false
         }
+        dao.publishStory(storyId, System.currentTimeMillis())
+        notifyFollowers("NEW_STORY", story = story)
+        return true
     }
 
     suspend fun unpublishStory(storyId: String) = dao.unpublishStory(storyId, System.currentTimeMillis())
@@ -486,29 +489,37 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getReadPartsCount(storyId: String): Flow<Int> = dao.getReadPartsCountForStory(currentUserId, storyId)
 
-    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null) {
+    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null): String {
         val now = System.currentTimeMillis()
+        val id = partId ?: UUID.randomUUID().toString()
+        val oldPart = dao.getStoryPartById(id)
         val part = StoryPart(
-            id = partId ?: UUID.randomUUID().toString(),
-            storyId = storyId, title = title, content = content, order = order,
-            publishedAt = now,
+            id = id,
+            storyId = storyId, title = title, content = content, order = oldPart?.order ?: order,
+            publishedAt = getPublishedAtForSave(oldPart, isPublished, now),
             isPublished = isPublished,
+            readCount = oldPart?.readCount ?: 0,
             headerImageUrl = headerImageUrl
         )
         dao.insertStoryPart(part)
-        
+
         if (isPublished) {
             val story = dao.getStoryById(storyId)
             if (story != null) {
-                if (!story.isPublished) {
+                if (!story.isPublished && canPublishStory(storyId)) {
                     dao.publishStory(storyId, now)
                     notifyFollowers("NEW_STORY", story = story)
                 } else {
                     dao.updateStoryLastUpdated(storyId, now)
-                    notifyFollowers("NEW_PART", story = story, part = part)
+                    if (story.isPublished) {
+                        notifyFollowers("NEW_PART", story = story, part = part)
+                    }
                 }
             }
+        } else {
+            unpublishStoryIfBelowMinimum(storyId, now)
         }
+        return id
     }
 
     suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean, headerImageUrl: String? = null) {
@@ -519,9 +530,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             storyId = storyId,
             title = title,
             content = content,
-            order = order,
-            publishedAt = now,
+            order = oldPart?.order ?: order,
+            publishedAt = getPublishedAtForSave(oldPart, isPublished, now),
             isPublished = isPublished,
+            readCount = oldPart?.readCount ?: 0,
             headerImageUrl = headerImageUrl
         )
         dao.insertStoryPart(part)
@@ -529,19 +541,18 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         if (isPublished) {
             val story = dao.getStoryById(storyId)
             if (story != null) {
-                if (!story.isPublished) {
+                if (!story.isPublished && canPublishStory(storyId)) {
                     dao.publishStory(storyId, now)
                     notifyFollowers("NEW_STORY", story = story)
                 } else if (oldPart == null || !oldPart.isPublished) {
                     dao.updateStoryLastUpdated(storyId, now)
-                    notifyFollowers("NEW_PART", story = story, part = part)
+                    if (story.isPublished) {
+                        notifyFollowers("NEW_PART", story = story, part = part)
+                    }
                 }
             }
         } else {
-            val publishedCount = dao.getPublishedPartCount(storyId)
-            if (publishedCount == 0) {
-                dao.unpublishStory(storyId, now)
-            }
+            unpublishStoryIfBelowMinimum(storyId, now)
         }
     }
 
@@ -549,10 +560,19 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val part = dao.getStoryPartById(partId)
         if (part != null) {
             dao.deleteStoryPart(partId)
-            val publishedCount = dao.getPublishedPartCount(part.storyId)
-            if (publishedCount == 0) {
-                dao.unpublishStory(part.storyId, System.currentTimeMillis())
-            }
+            unpublishStoryIfBelowMinimum(part.storyId, System.currentTimeMillis())
+        }
+    }
+
+    private suspend fun canPublishStory(storyId: String): Boolean =
+        dao.getPublishedPartCount(storyId) >= MIN_PUBLISHED_PARTS_TO_PUBLISH_STORY
+
+    private fun getPublishedAtForSave(oldPart: StoryPart?, isPublished: Boolean, now: Long): Long =
+        if (isPublished && oldPart?.isPublished == true) oldPart.publishedAt else now
+
+    private suspend fun unpublishStoryIfBelowMinimum(storyId: String, timestamp: Long) {
+        if (!canPublishStory(storyId)) {
+            dao.unpublishStory(storyId, timestamp)
         }
     }
 
@@ -840,33 +860,33 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun isPartRead(partId: String): Flow<Boolean> = dao.isPartRead(currentUserId, partId)
 
-    // ── Albums ────────────────────────────────────────────────────────────────
+    // ── Reading Lists ─────────────────────────────────────────────────────────
 
-    suspend fun createAlbum(name: String, description: String = "") {
-        val album = Album(
+    suspend fun createReadingList(name: String, description: String = "") {
+        val readingList = ReadingList(
             id = UUID.randomUUID().toString(),
             userId = currentUserId,
             name = name,
             description = description
         )
-        dao.insertAlbum(album)
+        dao.insertReadingList(readingList)
     }
 
-    suspend fun deleteAlbum(albumId: String) {
-        dao.deleteAlbum(albumId)
+    suspend fun deleteReadingList(listId: String) {
+        dao.deleteReadingList(listId)
     }
 
-    fun getAlbums(): Flow<List<Album>> = dao.getAlbumsForUser(currentUserId)
+    fun getReadingLists(): Flow<List<ReadingList>> = dao.getReadingListsForUser(currentUserId)
 
-    suspend fun addStoryToAlbum(albumId: String, storyId: String) {
-        dao.insertAlbumStory(AlbumStory(albumId, storyId))
+    suspend fun addStoryToReadingList(listId: String, storyId: String) {
+        dao.insertReadingListStory(ReadingListStory(listId, storyId))
     }
 
-    suspend fun removeStoryFromAlbum(albumId: String, storyId: String) {
-        dao.deleteAlbumStory(albumId, storyId)
+    suspend fun removeStoryFromReadingList(listId: String, storyId: String) {
+        dao.deleteReadingListStory(listId, storyId)
     }
 
-    fun getStoriesForAlbum(albumId: String): Flow<List<Story>> = dao.getStoriesForAlbum(albumId)
+    fun getStoriesForReadingList(listId: String): Flow<List<Story>> = dao.getStoriesForReadingList(listId)
 
-    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean = dao.isStoryInAlbum(albumId, storyId)
+    suspend fun isStoryInReadingList(listId: String, storyId: String): Boolean = dao.isStoryInReadingList(listId, storyId)
 }

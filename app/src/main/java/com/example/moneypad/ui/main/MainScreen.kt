@@ -115,7 +115,26 @@ fun ProfileNavigation(
                 themeViewModel = themeViewModel,
                 onLogout = onLogout,
                 onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") },
-                onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") }
+                onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") },
+                onNavigateToReadingListDetail = { id, name -> profileNavController.navigate("reading_list_detail/$id/$name") }
+            )
+        }
+        composable(
+            "reading_list_detail/{listId}/{listName}",
+            arguments = listOf(
+                androidx.navigation.navArgument("listId") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("listName") { type = androidx.navigation.NavType.StringType }
+            )
+        ) { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            val listName = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("listName") ?: "", "UTF-8")
+            ReadingListDetailScreen(
+                listId = listId,
+                listName = listName,
+                onNavigateBack = { profileNavController.popBackStack() },
+                onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") },
+                viewModel = storyViewModel
             )
         }
         composable(
@@ -188,6 +207,9 @@ fun ProfileNavigation(
                 storyId = storyId,
                 partId = partId,
                 onNavigateBack = { profileNavController.popBackStack() },
+                onFinishReading = {
+                    profileNavController.popBackStack("story_view/$storyId", inclusive = false)
+                },
                 onNavigateToPart = { id -> profileNavController.navigate("read/$storyId/$id") },
                 viewModel = storyViewModel
             )
@@ -286,6 +308,9 @@ fun ExploreNavigation(
                 storyId = storyId,
                 partId = partId,
                 onNavigateBack = { exploreNavController.popBackStack() },
+                onFinishReading = {
+                    exploreNavController.popBackStack("story_view/$storyId", inclusive = false)
+                },
                 onNavigateToPart = { id -> exploreNavController.navigate("read/$storyId/$id") },
                 viewModel = storyViewModel
             )
@@ -352,6 +377,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
                 onStoryCreated = { id ->
                     if (storyId == null) {
                         // New story created, go to write_part
+                        storyViewModel.clearLastCreatedStoryId()
                         writeNavController.navigate("write_part/$id") {
                             popUpTo("setup") { inclusive = true }
                         }
@@ -369,7 +395,13 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
             StoryDetailScreen(
                 storyId = storyId,
                 onNavigateBack = { writeNavController.popBackStack() },
-                onNavigateToWritePart = { id -> writeNavController.navigate("write_part/$id") },
+                onNavigateToWritePart = { id -> 
+                    // If id is just storyId (not storyId?partId=...), it's a new part
+                    if (!id.contains("?partId=")) {
+                        storyViewModel.clearLastCreatedStoryId()
+                    }
+                    writeNavController.navigate("write_part/$id") 
+                },
                 onNavigateToEditStory = { id -> writeNavController.navigate("setup?storyId=$id") },
                 viewModel = storyViewModel
             )
@@ -401,6 +433,7 @@ fun WriteNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -
                 storyId = storyId,
                 partId = partId,
                 onNavigateBack = { writeNavController.popBackStack() },
+                onFinishReading = { writeNavController.popBackStack() },
                 onNavigateToPart = { id -> writeNavController.navigate("read/$storyId/$id") },
                 viewModel = storyViewModel,
                 isPreview = true

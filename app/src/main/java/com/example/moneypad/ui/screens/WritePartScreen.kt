@@ -62,9 +62,11 @@ fun WritePartScreen(
     }
     var isPublished by remember(partToEdit) { mutableStateOf(partToEdit?.isPublished ?: false) }
     var expanded by remember { mutableStateOf(false) }
-    var showSaveDraftDialog by remember { mutableStateOf(false) }
     var showStatsDialog by remember { mutableStateOf(false) }
     var showFontMenu by remember { mutableStateOf(false) }
+
+    // Track the part ID locally to avoid creating new parts on every save
+    var currentPartId by remember { mutableStateOf(partId ?: java.util.UUID.randomUUID().toString()) }
 
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
@@ -93,44 +95,9 @@ fun WritePartScreen(
         title != lastSavedTitle || content.annotatedString.toHtmlString() != lastSavedContent
     }
 
-    // Save as draft and go back
-    fun saveDraftAndExit() {
-        viewModel.savePartAsDraft(storyId, title, content.annotatedString.toHtmlString(), partId)
-        onNavigateBack()
-    }
-
     // Intercept the system back gesture/button
     BackHandler {
-        if (hasChanges && (title.isNotBlank() || content.annotatedString.text.isNotBlank())) {
-            showSaveDraftDialog = true
-        } else {
-            onNavigateBack()
-        }
-    }
-
-    // Save-draft confirmation dialog
-    if (showSaveDraftDialog) {
-        AlertDialog(
-            onDismissRequest = { showSaveDraftDialog = false },
-            title = { Text("Save as Draft?") },
-            text = { Text("Do you want to save your chapter as a draft before leaving?") },
-            confirmButton = {
-                Button(onClick = {
-                    showSaveDraftDialog = false
-                    saveDraftAndExit()
-                }) {
-                    Text("Save Draft")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showSaveDraftDialog = false
-                    onNavigateBack()
-                }) {
-                    Text("Discard")
-                }
-            }
-        )
+        onNavigateBack()
     }
 
     // Writing stats dialog
@@ -218,48 +185,36 @@ fun WritePartScreen(
         }
     }
 
+    // Auto-save logic
+    var savingStatus by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(title, content.annotatedString, currentPartId) {
+        if (hasChanges) {
+            savingStatus = "Saving..."
+            kotlinx.coroutines.delay(1000) // Debounce
+            
+            viewModel.savePartAsDraft(storyId, title, content.annotatedString.toHtmlString(), currentPartId)
+            lastSavedTitle = title
+            lastSavedContent = content.annotatedString.toHtmlString()
+            savingStatus = "Saved"
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { },
+                title = { 
+                    savingStatus?.let { status ->
+                        Text(status, fontSize = 12.sp, color = Color.Gray)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (hasChanges && (title.isNotBlank() || content.text.isNotBlank())) {
-                            showSaveDraftDialog = true
-                        } else {
-                            onNavigateBack()
-                        }
+                        onNavigateBack()
                     }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    Button(
-                        onClick = {
-                            if (title.isNotBlank() && content.annotatedString.text.isNotBlank()) {
-                                if (isPublished) {
-                                    viewModel.updatePartStatus(storyId, partId ?: "", title, content.annotatedString.toHtmlString(), false)
-                                    isPublished = false
-                                    lastSavedTitle = title
-                                    lastSavedContent = content.annotatedString.toHtmlString()
-                                    android.widget.Toast.makeText(context, "Part unpublished", android.widget.Toast.LENGTH_SHORT).show()
-                                } else {
-                                    viewModel.addPartToStory(storyId, title, content.annotatedString.toHtmlString(), partId, true)
-                                    isPublished = true
-                                    lastSavedTitle = title
-                                    lastSavedContent = content.annotatedString.toHtmlString()
-                                    android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .height(36.dp)
-                    ) {
-                        Text(if (isPublished) "Unpublish" else "Publish", fontSize = 14.sp)
-                    }
-
                     Box {
                         IconButton(onClick = { expanded = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -269,10 +224,17 @@ fun WritePartScreen(
                             onDismissRequest = { expanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Save as Draft") },
+                                text = { Text("Save and Publish") },
                                 onClick = {
                                     expanded = false
-                                    saveDraftAndExit()
+                                    if (title.isNotBlank() && content.annotatedString.text.isNotBlank()) {
+                                        viewModel.addPartToStory(storyId, title, content.annotatedString.toHtmlString(), currentPartId, true)
+                                        isPublished = true
+                                        lastSavedTitle = title
+                                        lastSavedContent = content.annotatedString.toHtmlString()
+                                        android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
+                                        onNavigateBack()
+                                    }
                                 }
                             )
                             DropdownMenuItem(
@@ -286,8 +248,8 @@ fun WritePartScreen(
                                 text = { Text("View as Reader's POV") },
                                 onClick = {
                                     expanded = false
-                                    if (partId != null) {
-                                        navController?.navigate("read/$storyId/$partId")
+                                    if (currentPartId != null) {
+                                        navController?.navigate("read/$storyId/$currentPartId")
                                     }
                                 }
                             )
@@ -300,8 +262,8 @@ fun WritePartScreen(
                                 },
                                 onClick = {
                                     expanded = false
-                                    if (partId != null) {
-                                        viewModel.deletePart(partId)
+                                    if (currentPartId != null) {
+                                        viewModel.deletePart(currentPartId!!)
                                         onNavigateBack()
                                     }
                                 }

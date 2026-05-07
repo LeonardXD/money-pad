@@ -19,22 +19,24 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Story
+import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.ui.components.VerifiedIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumDetailScreen(
-    albumId: String,
-    albumName: String,
+fun ReadingListDetailScreen(
+    listId: String,
+    listName: String,
     onNavigateBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
     viewModel: StoryViewModel
 ) {
-    val stories by viewModel.getStoriesForAlbum(albumId).collectAsState(initial = emptyList())
+    val stories by remember(listId) { viewModel.getStoriesForReadingList(listId) }.collectAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(albumName, fontWeight = FontWeight.Bold) },
+                title = { Text(listName, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -51,7 +53,7 @@ fun AlbumDetailScreen(
         ) {
             if (stories.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("This album is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("This reading list is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 LazyColumn(
@@ -59,10 +61,11 @@ fun AlbumDetailScreen(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp)
                 ) {
                     items(stories) { story ->
-                        AlbumStoryItem(
+                        ReadingListStoryItem(
                             story = story,
+                            viewModel = viewModel,
                             onClick = { onNavigateToStoryDetail(story.id) },
-                            onRemove = { viewModel.removeStoryFromAlbum(albumId, story.id) }
+                            onRemove = { viewModel.removeStoryFromReadingList(listId, story.id) }
                         )
                     }
                 }
@@ -72,11 +75,14 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-fun AlbumStoryItem(
+fun ReadingListStoryItem(
     story: Story,
+    viewModel: StoryViewModel,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
+    val author by remember(story.authorId) { viewModel.getUser(story.authorId) }.collectAsState(initial = null)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,19 +119,25 @@ fun AlbumStoryItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "By ${story.authorName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "By ${story.authorName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (author?.isVerified == true || story.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                    }
+                }
             }
 
             IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Remove from album",
+                    contentDescription = "Remove from list",
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
                 )
             }

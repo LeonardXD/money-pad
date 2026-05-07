@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -46,24 +47,62 @@ fun ProfileScreen(
     themeViewModel: ThemeViewModel,
     onLogout: () -> Unit,
     onNavigateToPublicProfile: (String) -> Unit,
-    onNavigateToStoryDetail: (String) -> Unit
+    onNavigateToStoryDetail: (String) -> Unit,
+    onNavigateToReadingListDetail: (String, String) -> Unit
 ) {
     val user by viewModel.user.collectAsState()
     val storiesPublished by viewModel.storiesPublished.collectAsState()
     val conversations by viewModel.conversations.collectAsState()
+    val readingLists by viewModel.readingLists.collectAsState()
     val followers by viewModel.followers.collectAsState()
     val following by viewModel.following.collectAsState()
     val context = LocalContext.current
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("About", "Stories", "Conversation")
+    val tabs = listOf("About", "Stories", "Reading Lists", "Conversation")
 
     var showSettings by remember { mutableStateOf(false) }
     var showSettingsScreen by remember { mutableStateOf(false) }
     var showFollowersDialog by remember { mutableStateOf(false) }
     var showFollowingDialog by remember { mutableStateOf(false) }
     var showVerificationScreen by remember { mutableStateOf(false) }
+    var showCreateListDialog by remember { mutableStateOf(false) }
+    var newListName by remember { mutableStateOf("") }
     var messageText by remember { mutableStateOf("") }
+
+    if (showCreateListDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateListDialog = false },
+            title = { Text("New Reading List") },
+            text = {
+                OutlinedTextField(
+                    value = newListName,
+                    onValueChange = { newListName = it },
+                    label = { Text("List Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newListName.isNotBlank()) {
+                            viewModel.createReadingList(newListName)
+                            newListName = ""
+                            showCreateListDialog = false
+                        }
+                    }
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateListDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showSettingsScreen) {
         SettingsScreen(
@@ -148,272 +187,326 @@ fun ProfileScreen(
         .getPublishedStoriesForCurrentUser()
         .collectAsState(initial = emptyList())
 
-    LazyColumn(modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
-        // ── Profile header ─────────────────────────────────────────────────
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-            ) {
-                // Cover image
+    Scaffold(
+        floatingActionButton = {
+            if (selectedTab == 2) {
+                FloatingActionButton(
+                    onClick = { showCreateListDialog = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Create Reading List")
+                }
+            }
+        }
+    ) { padding ->
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).statusBarsPadding().imePadding()) {
+            // ── Profile header ─────────────────────────────────────────────────
+            item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .clickable { coverImageLauncher.launch("image/*") }
+                        .height(200.dp)
                 ) {
-                    if (user?.coverImageUrl != null) {
-                        AsyncImage(
-                            model = user?.coverImageUrl,
-                            contentDescription = "Cover Image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.AddPhotoAlternate,
-                            contentDescription = "Add Cover",
-                            modifier = Modifier.align(Alignment.Center),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                // Settings gear
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                ) {
-                    IconButton(
-                        onClick = { showSettingsScreen = true },
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                    }
-                }
-
-                // Profile image
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .align(Alignment.BottomCenter)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(4.dp)
-                ) {
+                    // Cover image
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
+                            .fillMaxWidth()
+                            .height(150.dp)
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                            .clickable { profileImageLauncher.launch("image/*") },
-                        contentAlignment = Alignment.Center
+                            .clickable { coverImageLauncher.launch("image/*") }
                     ) {
-                        if (user?.profileImageUrl != null) {
+                        if (user?.coverImageUrl != null) {
                             AsyncImage(
-                                model = user?.profileImageUrl,
-                                contentDescription = "Profile Picture",
+                                model = user?.coverImageUrl,
+                                contentDescription = "Cover Image",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
                         } else {
                             Icon(
-                                Icons.Default.Person,
-                                contentDescription = "Profile Picture",
-                                modifier = Modifier.size(60.dp),
+                                Icons.Default.AddPhotoAlternate,
+                                contentDescription = "Add Cover",
+                                modifier = Modifier.align(Alignment.Center),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
-                }
-            }
-        }
 
-        item { Spacer(modifier = Modifier.height(8.dp)) }
-
-        // ── User info ──────────────────────────────────────────────────────
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = user?.username ?: "Loading...",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (user?.isVerified == true || user?.id == MoneyPadRepository.OFFICIAL_USER_ID) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        VerifiedIcon()
-                    }
-                }
-                // Email visible only to owner
-                Text(
-                    text = user?.email ?: "",
-                    fontSize = 13.sp,
-                    color = Color.Gray
-                )
-
-                if (user?.isVerified == false && user?.id != MoneyPadRepository.OFFICIAL_USER_ID) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { showVerificationScreen = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                    // Settings gear
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
                     ) {
-                        Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Get Verified Account", fontSize = 14.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Stats row — followers/following are tappable
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
-                        StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
-                    }
-                    Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
-                        StatItem(label = "Following", value = (user?.following ?: 0).toString())
-                    }
-                    Box(modifier = Modifier.clickable { selectedTab = 1 }) {
-                        StatItem(label = "Stories", value = publishedStories.size.toString())
-                    }
-                }
-            }
-        }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
-
-        // ── Tabs ───────────────────────────────────────────────────────────
-        item {
-            TabRow(selectedTabIndex = selectedTab) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title) }
-                    )
-                }
-            }
-        }
-
-        when (selectedTab) {
-            0 -> item {
-                AboutTab(user?.bio ?: "", onSaveBio = { newBio ->
-                    viewModel.updateProfile(newBio, user?.profileImageUrl, user?.coverImageUrl)
-                })
-            }
-            1 -> {
-                if (publishedStories.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
+                        IconButton(
+                            onClick = { showSettingsScreen = true },
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
                         ) {
-                            Text("No published stories yet.", color = Color.Gray)
+                            Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
                         }
                     }
-                } else {
-                    val displayedStories = if (publishedStories.size > 6) publishedStories.take(6) else publishedStories
-                    val hasMore = publishedStories.size > 6
-                    val chunked = displayedStories.chunked(2)
 
-                    items(chunked) { row ->
+                    // Profile image
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .align(Alignment.BottomCenter)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                .clickable { profileImageLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (user?.profileImageUrl != null) {
+                                AsyncImage(
+                                    model = user?.profileImageUrl,
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier.size(60.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+
+            // ── User info ──────────────────────────────────────────────────────
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = user?.username ?: "Loading...",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (user?.isVerified == true || user?.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            VerifiedIcon()
+                        }
+                    }
+                    // Email visible only to owner
+                    Text(
+                        text = user?.email ?: "",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+
+                    if (user?.isVerified == false && user?.id != MoneyPadRepository.OFFICIAL_USER_ID) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { showVerificationScreen = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Icon(Icons.Default.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Get Verified Account", fontSize = 14.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Stats row — followers/following are tappable
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Box(modifier = Modifier.clickable { showFollowersDialog = true }) {
+                            StatItem(label = "Followers", value = (user?.followers ?: 0).toString())
+                        }
+                        Box(modifier = Modifier.clickable { showFollowingDialog = true }) {
+                            StatItem(label = "Following", value = (user?.following ?: 0).toString())
+                        }
+                        Box(modifier = Modifier.clickable { selectedTab = 1 }) {
+                            StatItem(label = "Stories", value = publishedStories.size.toString())
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
+
+            // ── Tabs ───────────────────────────────────────────────────────────
+            item {
+                ScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    edgePadding = 0.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    divider = {}
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { 
+                                Text(
+                                    title,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                ) 
+                            }
+                        )
+                    }
+                }
+            }
+
+            when (selectedTab) {
+                0 -> item {
+                    AboutTab(user?.bio ?: "", onSaveBio = { newBio ->
+                        viewModel.updateProfile(newBio, user?.profileImageUrl, user?.coverImageUrl)
+                    })
+                }
+                1 -> {
+                    if (publishedStories.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No published stories yet.", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        val displayedStories = if (publishedStories.size > 6) publishedStories.take(6) else publishedStories
+                        val hasMore = publishedStories.size > 6
+                        val chunked = displayedStories.chunked(2)
+
+                        items(chunked) { row ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                row.forEach { story ->
+                                    ProfileStoryItem(
+                                        story = story, 
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { onNavigateToStoryDetail(story.id) }
+                                    )
+                                }
+                                if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+
+                        if (hasMore) {
+                            item {
+                                TextButton(
+                                    onClick = { /* future: navigate to full list */ },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("View All Stories →", color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+                2 -> {
+                    if (readingLists.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No reading lists yet.", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        items(readingLists) { list ->
+                            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                ReadingListItem(
+                                    list = list,
+                                    user = user,
+                                    onClick = { 
+                                        val encodedName = java.net.URLEncoder.encode(list.name, "UTF-8")
+                                        onNavigateToReadingListDetail(list.id, encodedName)
+                                    },
+                                    onDelete = { viewModel.deleteReadingList(list.id) }
+                                )
+                            }
+                        }
+                    }
+                }
+                3 -> {
+                    // Post Message Area for owner
+                    item {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            row.forEach { story ->
-                                ProfileStoryItem(
-                                    story = story, 
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onNavigateToStoryDetail(story.id) }
-                                )
-                            }
-                            if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
-                        }
-                    }
-
-                    if (hasMore) {
-                        item {
-                            TextButton(
-                                onClick = { /* future: navigate to full list */ },
-                                modifier = Modifier.fillMaxWidth()
+                            OutlinedTextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("Post a message to your wall...") },
+                                maxLines = 3,
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = {
+                                    if (messageText.isNotBlank()) {
+                                        viewModel.sendMessage(user?.id ?: "", messageText)
+                                        messageText = ""
+                                    }
+                                },
+                                enabled = messageText.isNotBlank()
                             ) {
-                                Text("View All Stories →", color = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    if (conversations.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("No conversations yet.", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        items(conversations) { conv ->
+                            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                ConversationItemForProfile(conv, user?.id ?: "", viewModel)
                             }
                         }
                     }
                 }
             }
-            2 -> {
-                // Post Message Area for owner
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = messageText,
-                            onValueChange = { messageText = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Post a message to your wall...") },
-                            maxLines = 3,
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = {
-                                if (messageText.isNotBlank()) {
-                                    viewModel.sendMessage(user?.id ?: "", messageText)
-                                    messageText = ""
-                                }
-                            },
-                            enabled = messageText.isNotBlank()
-                        ) {
-                            Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
 
-                if (conversations.isEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No conversations yet.", color = Color.Gray)
-                        }
-                    }
-                } else {
-                    items(conversations) { conv ->
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                            ConversationItemForProfile(conv, user?.id ?: "", viewModel)
-                        }
-                    }
-                }
-            }
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }
 
@@ -677,6 +770,94 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                         bringIntoViewRequester.bringIntoView()
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ReadingListItem(
+    list: com.example.moneypad.data.model.ReadingList,
+    user: com.example.moneypad.data.model.User?,
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Reading List?") },
+            text = { Text("Are you sure you want to delete '${list.name}'? The stories inside won't be deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.List,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = list.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                if (list.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = list.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete List",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                )
             }
         }
     }

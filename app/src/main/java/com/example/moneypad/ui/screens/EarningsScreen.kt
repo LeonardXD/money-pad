@@ -53,10 +53,10 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
 
     val readerCoins = uiState.user?.readerCoins ?: 0
     val readerPhp = readerCoins * coinToPhpRate
-    val readerUsd = readerPhp / conversionRate
 
-    val totalUsd = authorUsd + readerUsd
-    val totalPhp = authorPhp + readerPhp
+    val referralPhp = uiState.referralBalance
+
+    val totalPhp = authorPhp + readerPhp + referralPhp
 
     val uniqueViews = uiState.myPublishedStories.sumOf { it.uniqueViews }
     val repeatedViews = uiState.myPublishedStories.sumOf { it.repeatedViews }
@@ -321,11 +321,11 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             ReferralRewardRow("Reads 5 pages", "15 Coins")
-                            ReferralRewardRow("Reads 15 pages", "30 Coins")
-                            ReferralRewardRow("Reads 25 pages", "50 Coins")
-                            ReferralRewardRow("Reads 40 pages", "80 Coins")
-                            ReferralRewardRow("Reads 80 pages", "120 Coins")
-                            ReferralRewardRow("Reads 110 pages", "180 Coins")
+                            ReferralRewardRow("Reads 15 pages", "45 Coins")
+                            ReferralRewardRow("Reads 25 pages", "95 Coins")
+                            ReferralRewardRow("Reads 40 pages", "175 Coins")
+                            ReferralRewardRow("Reads 80 pages", "295 Coins")
+                            ReferralRewardRow("Reads 110 pages", "475 Coins")
                         }
                         Text(
                             "(Total of 4.75 pesos/reader)",
@@ -408,30 +408,39 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("Total Invites", fontSize = 10.sp, color = Color.Gray)
-                            Text("$referralCount", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        }
-                        
-                        VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
-                        
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("Coins Accumulated", fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Center)
-                            Text("${uiState.referralCoinsAccumulated}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        }
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Total Estimated Earnings: ₱${String.format("%.2f", totalPhp)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                Text("Total Invites", fontSize = 10.sp, color = Color.Gray)
+                                Text("$referralCount", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
+                            
+                            VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
+                            
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                Text("Coins Accumulated", fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                                Text("${uiState.referralCoinsAccumulated}", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            }
 
-                        VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
+                            VerticalDivider(modifier = Modifier.height(30.dp), thickness = 1.dp, color = Color.LightGray)
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                            Text("Commission", fontSize = 10.sp, color = Color.Gray)
-                            Text("₱${String.format("%.2f", uiState.referralCommission)}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
+                                Text("Commission", fontSize = 10.sp, color = Color.Gray)
+                                Text("₱${String.format("%.2f", uiState.referralCommission)}", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }

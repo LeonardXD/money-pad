@@ -29,6 +29,10 @@ import androidx.compose.ui.platform.LocalView
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.unit.IntOffset
 
 import com.example.moneypad.utils.HtmlConverter.parseHtmlToAnnotatedString
 
@@ -38,6 +42,7 @@ fun ReadPartScreen(
     storyId: String,
     partId: String,
     onNavigateBack: () -> Unit,
+    onFinishReading: () -> Unit,
     onNavigateToPart: (String) -> Unit,
     viewModel: StoryViewModel,
     isPreview: Boolean = false
@@ -87,8 +92,7 @@ fun ReadPartScreen(
     }
 
     // Fix flickering: remember the flow so it's not recreated on every recomposition
-    val isPartReadFlow = remember(partId) { viewModel.isPartRead(partId) }
-    val isPartAlreadyRead by isPartReadFlow.collectAsState()
+    val isPartAlreadyRead by remember(partId) { viewModel.isPartRead(partId) }.collectAsState(initial = false)
     
     LaunchedEffect(parts) {
         val part = parts.find { it.id == partId }
@@ -131,7 +135,7 @@ fun ReadPartScreen(
                     progress += (1f / 600f)
                     if (progress >= 1f) {
                         earnedCoins += 5
-                        viewModel.earnReaderCoins(5)
+                        // viewModel.earnReaderCoins(5) // No longer counted per Task 2
                         progress = 0f
                     }
                 }
@@ -257,7 +261,7 @@ fun ReadPartScreen(
                                         Button(
                                             onClick = {
                                                 if (!isPreview) viewModel.recordPartRead(storyId, partId)
-                                                onNavigateBack()
+                                                onFinishReading()
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                                         ) {
@@ -313,16 +317,33 @@ fun ReadPartScreen(
                             
                             // Earnings UI Overlay
                             if (!isPreview) {
+                                var offsetX by remember { mutableFloatStateOf(0f) }
+                                var offsetY by remember { mutableFloatStateOf(0f) }
+
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(end = 16.dp, top = 32.dp),
+                                        .padding(16.dp),
                                     contentAlignment = Alignment.TopEnd
                                 ) {
                                     if (isPartAlreadyRead) {
                                         Surface(
                                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
-                                            shape = RoundedCornerShape(16.dp)
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier
+                                                .offset {
+                                                    IntOffset(
+                                                        offsetX.toInt(),
+                                                        offsetY.toInt()
+                                                    )
+                                                }
+                                                .pointerInput(Unit) {
+                                                    detectDragGestures { change: PointerInputChange, dragAmount ->
+                                                        change.consume()
+                                                        offsetX += dragAmount.x
+                                                        offsetY += dragAmount.y
+                                                    }
+                                                }
                                         ) {
                                             Text(
                                                 "Coins already earned for this chapter",
@@ -334,7 +355,21 @@ fun ReadPartScreen(
                                     } else {
                                         Box(
                                             contentAlignment = Alignment.Center,
-                                            modifier = Modifier.size(50.dp)
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .offset {
+                                                    IntOffset(
+                                                        offsetX.toInt(),
+                                                        offsetY.toInt()
+                                                    )
+                                                }
+                                                .pointerInput(Unit) {
+                                                    detectDragGestures { change: PointerInputChange, dragAmount ->
+                                                        change.consume()
+                                                        offsetX += dragAmount.x
+                                                        offsetY += dragAmount.y
+                                                    }
+                                                }
                                         ) {
                                             CircularProgressIndicator(
                                                 progress = { progress },

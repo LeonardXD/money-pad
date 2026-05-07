@@ -142,19 +142,18 @@ data class LibraryStory(
     val downloadedAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "albums")
-data class Album(
-    @PrimaryKey val id: String,
-    val userId: String,
+@Entity(tableName = "reading_lists")
+data class ReadingList(
+    @PrimaryKey val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
     val description: String = "",
-    val coverImageUrl: String? = null,
+    val userId: String,
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "album_stories", primaryKeys = ["albumId", "storyId"])
-data class AlbumStory(
-    val albumId: String,
+@Entity(tableName = "reading_list_stories", primaryKeys = ["listId", "storyId"])
+data class ReadingListStory(
+    val listId: String,
     val storyId: String,
     val addedAt: Long = System.currentTimeMillis()
 )

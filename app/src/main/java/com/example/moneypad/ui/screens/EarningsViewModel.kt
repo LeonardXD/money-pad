@@ -65,7 +65,9 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
                     "GCash" -> 50.0
                     else -> 50.0
                 }
+                val readerBalance = (uiState.value.user?.readerCoins ?: 0) * 0.01
                 if (amount < minWithdrawal) return@launch
+                if (amount > readerBalance) return@launch
             }
             
             // Deduct balance and create transaction

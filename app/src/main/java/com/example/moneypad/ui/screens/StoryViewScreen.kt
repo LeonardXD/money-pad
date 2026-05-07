@@ -59,13 +59,13 @@ fun StoryViewScreen(
 
     var showMenu by remember { mutableStateOf(false) }
     var showReviewDialog by remember { mutableStateOf(false) }
-    var showAlbumSelectionDialog by remember { mutableStateOf(false) }
-    val albums by viewModel.albums.collectAsState()
+    var showReadingListSelectionDialog by remember { mutableStateOf(false) }
+    val readingLists by viewModel.readingLists.collectAsState()
 
     var reviewRating by remember { mutableIntStateOf(5) }
     var reviewComment by remember { mutableStateOf("") }
-    val isLiked by viewModel.isStoryLiked(storyId).collectAsState(initial = false)
-    val isInLibrary by viewModel.isStoryInLibrary(storyId).collectAsState(initial = false)
+    val isLiked by remember(storyId) { viewModel.isStoryLiked(storyId) }.collectAsState(initial = false)
+    val isInLibrary by remember(storyId) { viewModel.isStoryInLibrary(storyId) }.collectAsState(initial = false)
     
     val context = androidx.compose.ui.platform.LocalContext.current
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
@@ -74,49 +74,49 @@ fun StoryViewScreen(
         viewModel.getStoryById(storyId)
     }
 
-    if (showAlbumSelectionDialog) {
+    if (showReadingListSelectionDialog) {
         AlertDialog(
-            onDismissRequest = { showAlbumSelectionDialog = false },
-            title = { Text("Add to Album") },
+            onDismissRequest = { showReadingListSelectionDialog = false },
+            title = { Text("Add to Reading List") },
             text = {
-                if (albums.isEmpty()) {
-                    Text("You don't have any albums yet. Create one in your Library.")
+                if (readingLists.isEmpty()) {
+                    Text("You don't have any reading lists yet. Create one in your Profile.")
                 } else {
                     LazyColumn {
-                        items(albums) { album ->
-                            var isInAlbum by remember { mutableStateOf(false) }
-                            LaunchedEffect(album.id) {
-                                isInAlbum = viewModel.isStoryInAlbum(album.id, storyId)
+                        items(readingLists) { list ->
+                            var isInList by remember { mutableStateOf(false) }
+                            LaunchedEffect(list.id) {
+                                isInList = viewModel.isStoryInReadingList(list.id, storyId)
                             }
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        if (isInAlbum) {
-                                            viewModel.removeStoryFromAlbum(album.id, storyId)
-                                            isInAlbum = false
+                                        if (isInList) {
+                                            viewModel.removeStoryFromReadingList(list.id, storyId)
+                                            isInList = false
                                         } else {
-                                            viewModel.addStoryToAlbum(album.id, storyId)
-                                            isInAlbum = true
+                                            viewModel.addStoryToReadingList(list.id, storyId)
+                                            isInList = true
                                         }
                                     }
                                     .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
-                                    checked = isInAlbum,
+                                    checked = isInList,
                                     onCheckedChange = null // Handled by row click
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(album.name)
+                                Text(list.name)
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAlbumSelectionDialog = false }) {
+                TextButton(onClick = { showReadingListSelectionDialog = false }) {
                     Text("Close")
                 }
             }
@@ -145,10 +145,10 @@ fun StoryViewScreen(
                             onClick = { showMenu = false }
                         )
                         DropdownMenuItem(
-                            text = { Text("Add to Album") },
+                            text = { Text("Add to Reading List") },
                             onClick = {
                                 showMenu = false
-                                showAlbumSelectionDialog = true
+                                showReadingListSelectionDialog = true
                             }
                         )
                         DropdownMenuItem(

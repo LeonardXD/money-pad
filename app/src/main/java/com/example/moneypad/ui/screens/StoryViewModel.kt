@@ -120,6 +120,8 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         initialValue = null
     )
 
+    fun getUser(userId: String) = repository.getUser(userId)
+
     fun claimReferralReward() {
         viewModelScope.launch {
             repository.claimReferralReward()
@@ -317,17 +319,9 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
-    fun isStoryInLibrary(storyId: String) = repository.isStoryInLibrary(storyId).stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
+    fun isStoryInLibrary(storyId: String): Flow<Boolean> = repository.isStoryInLibrary(storyId)
 
-    fun isPartRead(partId: String) = repository.isPartRead(partId).stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
+    fun isPartRead(partId: String): Flow<Boolean> = repository.isPartRead(partId)
 
     // ── Notifications ────────────────────────────────────────────────────────
 
@@ -355,39 +349,39 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         }
     }
 
-    // ── Albums ────────────────────────────────────────────────────────────────
+    // ── Reading Lists ─────────────────────────────────────────────────────────
 
-    val albums = repository.getAlbums().stateIn(
+    val readingLists = repository.getReadingLists().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
-    fun createAlbum(name: String, description: String = "") {
+    fun createReadingList(name: String, description: String = "") {
         viewModelScope.launch {
-            repository.createAlbum(name, description)
+            repository.createReadingList(name, description)
         }
     }
 
-    fun deleteAlbum(albumId: String) {
+    fun deleteReadingList(listId: String) {
         viewModelScope.launch {
-            repository.deleteAlbum(albumId)
+            repository.deleteReadingList(listId)
         }
     }
 
-    fun addStoryToAlbum(albumId: String, storyId: String) {
+    fun addStoryToReadingList(listId: String, storyId: String) {
         viewModelScope.launch {
-            repository.addStoryToAlbum(albumId, storyId)
+            repository.addStoryToReadingList(listId, storyId)
         }
     }
 
-    fun removeStoryFromAlbum(albumId: String, storyId: String) {
+    fun removeStoryFromReadingList(listId: String, storyId: String) {
         viewModelScope.launch {
-            repository.removeStoryFromAlbum(albumId, storyId)
+            repository.removeStoryFromReadingList(listId, storyId)
         }
     }
 
-    fun getStoriesForAlbum(albumId: String): Flow<List<Story>> = repository.getStoriesForAlbum(albumId)
+    fun getStoriesForReadingList(listId: String): Flow<List<Story>> = repository.getStoriesForReadingList(listId)
 
-    suspend fun isStoryInAlbum(albumId: String, storyId: String): Boolean = repository.isStoryInAlbum(albumId, storyId)
+    suspend fun isStoryInReadingList(listId: String, storyId: String): Boolean = repository.isStoryInReadingList(listId, storyId)
 }

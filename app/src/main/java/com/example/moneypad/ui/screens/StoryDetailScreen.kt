@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.StoryPart
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,8 +84,13 @@ fun StoryDetailScreen(
                     if (!it.isPublished) {
                         Button(
                             onClick = { 
-                                if (parts.isEmpty()) {
-                                    android.widget.Toast.makeText(context, "Cannot publish a story with no chapters.", android.widget.Toast.LENGTH_SHORT).show()
+                                val publishedPartsCount = parts.count { part -> part.isPublished }
+                                if (publishedPartsCount < MoneyPadRepository.MIN_PUBLISHED_PARTS_TO_PUBLISH_STORY) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Publish at least 1 chapter before publishing the story.",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
                                 } else {
                                     viewModel.publishStory(it.id)
                                     android.widget.Toast.makeText(context, "Story published", android.widget.Toast.LENGTH_SHORT).show()

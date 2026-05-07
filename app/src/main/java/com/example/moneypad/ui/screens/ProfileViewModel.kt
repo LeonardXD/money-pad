@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Conversation
+import com.example.moneypad.data.model.ReadingList
 import com.example.moneypad.data.model.User
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -12,6 +13,9 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
 
     val user: StateFlow<User?> = repository.getUser(repository.currentUserId)
         .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    val readingLists: StateFlow<List<ReadingList>> = repository.getReadingLists()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val storiesPublished: StateFlow<Int> = repository.getPublishedStoriesByAuthor(repository.currentUserId)
         .map { it.size }
@@ -96,6 +100,20 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
     fun verifyUser() {
         viewModelScope.launch {
             repository.verifyUser(repository.currentUserId)
+        }
+    }
+
+    // ── Reading Lists ─────────────────────────────────────────────────────────
+
+    fun createReadingList(name: String, description: String = "") {
+        viewModelScope.launch {
+            repository.createReadingList(name, description)
+        }
+    }
+
+    fun deleteReadingList(listId: String) {
+        viewModelScope.launch {
+            repository.deleteReadingList(listId)
         }
     }
 }
