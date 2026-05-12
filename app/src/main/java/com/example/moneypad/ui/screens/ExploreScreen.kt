@@ -340,10 +340,16 @@ fun AuthorSearchItem(author: User, onClick: () -> Unit) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(author.username, fontWeight = FontWeight.Bold)
                     if (author.isVerified || author.id == MoneyPadRepository.OFFICIAL_USER_ID) {
                         Spacer(modifier = Modifier.width(4.dp))
-                        VerifiedIcon(modifier = Modifier.size(16.dp))
+                        VerifiedIcon()
+                    }
+                }
+                    if (author.isVerified || author.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon(modifier = Modifier.size(30.dp))
                     }
                 }
                 Text("${author.followers} Followers", fontSize = 12.sp, color = Color.Gray)

@@ -24,12 +24,26 @@ import com.example.moneypad.ui.main.MainScreen
 import com.example.moneypad.ui.theme.MoneyPadTheme
 import com.example.moneypad.ui.theme.ThemeViewModel
 import androidx.core.view.WindowCompat
+import com.example.moneypad.ads.AdManager
+import com.example.moneypad.data.model.User
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         enableEdgeToEdge()
+
+        AdManager.initialize(this)
+
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                AdManager.showAppOpenAdIfAvailable(this@MainActivity)
+            }
+        })
+
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
             val database = remember { AppDatabase.getDatabase(context) }
@@ -39,6 +53,10 @@ class MainActivity : ComponentActivity() {
             val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
 
             val currentUser by repository.getCurrentUser().collectAsState(initial = null)
+
+            LaunchedEffect(currentUser) {
+                AdManager.setUser(currentUser)
+            }
 
             // Determine start destination
             val startDestination = remember(currentUser) {
@@ -55,6 +73,13 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 repository.initUser()
+            }
+
+            val timeUntilNextAd by AdManager.timeUntilNextAd.collectAsState()
+            LaunchedEffect(timeUntilNextAd) {
+                if (timeUntilNextAd <= 0) {
+                    AdManager.checkAndShowTimerAd(this@MainActivity)
+                }
             }
 
             MoneyPadTheme(darkTheme = isDarkTheme) {

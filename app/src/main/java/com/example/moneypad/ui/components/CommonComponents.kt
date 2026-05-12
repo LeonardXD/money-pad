@@ -1,42 +1,38 @@
 package com.example.moneypad.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.moneypad.R
 import com.example.moneypad.data.model.Story
+import com.example.moneypad.data.model.User
 
 @Composable
-fun VerifiedIcon(modifier: Modifier = Modifier) {
-    Icon(
-        imageVector = Icons.Default.Verified,
+fun VerifiedIcon(modifier: Modifier = Modifier, size: Dp = 32.dp) {
+    Image(
+        painter = painterResource(id = R.drawable.verified_icon),
         contentDescription = "Verified",
-        modifier = modifier.size(20.dp),
-        tint = MaterialTheme.colorScheme.primary
+        modifier = modifier.size(size)
     )
 }
 
@@ -92,13 +88,19 @@ fun StoryCard(story: Story, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = story.overview,
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "By ${story.authorName}",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (story.isAuthorVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon(size = 20.dp)
+                    }
+                }
                 if (story.genres.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -128,6 +130,100 @@ fun StatItem(label: String, value: String) {
             fontSize = 12.sp,
             color = Color.Gray
         )
+    }
+}
+
+@Composable
+fun ReadingListItem(
+    list: com.example.moneypad.data.model.ReadingList,
+    user: User?,
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Reading List?") },
+            text = { Text("Are you sure you want to delete '${list.name}'? The stories inside won't be deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer,
+                                MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.List,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = list.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "By ${user?.username ?: "User"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    if (user?.isVerified == true) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon(size = 20.dp)
+                    }
+                }
+            }
+            if (onDelete != null) {
+                IconButton(onClick = { showDeleteDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Reading List",
+                        tint = Color.Gray
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -210,9 +306,9 @@ fun PublishedStoryCard(story: Story, onClick: () -> Unit, onDelete: () -> Unit) 
 
 @Composable
 fun DraftStoryCard(
-    story: Story, 
-    onClick: () -> Unit, 
-    onEdit: () -> Unit, 
+    story: Story,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -269,7 +365,7 @@ fun DraftStoryCard(
 
 @Composable
 fun CarouselStoryCard(
-    story: Story, 
+    story: Story,
     modifier: Modifier = Modifier,
     progress: Float? = null,
     onClick: () -> Unit
@@ -308,7 +404,7 @@ fun CarouselStoryCard(
                         )
                     }
                 }
-                
+
                 // Dark Gradient Overlay
                 Box(
                     modifier = Modifier
@@ -335,17 +431,23 @@ fun CarouselStoryCard(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = story.authorName,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-        )
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = story.authorName,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (story.isAuthorVerified) {
+                Spacer(modifier = Modifier.width(4.dp))
+                VerifiedIcon(size = 20.dp)
+            }
+        }
         
         if (progress != null) {
             LinearProgressIndicator(

@@ -18,6 +18,13 @@ import androidx.navigation.compose.rememberNavController
 import com.example.moneypad.ui.ViewModelFactory
 import com.example.moneypad.ui.screens.*
 import com.example.moneypad.ui.theme.ThemeViewModel
+import com.example.moneypad.ui.components.BannerAdView
+import com.example.moneypad.ads.AdManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Alignment
 
 @Composable
 fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogout: () -> Unit) {
@@ -28,69 +35,120 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    val navBackStackEntry by navController.currentBackStackEntryAsState()
-                    val currentDestination = navBackStackEntry?.destination
+            Column {
+                if (showBottomBar) {
+                    BannerAdView()
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        val navBackStackEntry by navController.currentBackStackEntryAsState()
+                        val currentDestination = navBackStackEntry?.destination
 
-                    bottomNavItems.forEach { screen ->
-                        NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = null) },
-                            label = { Text(screen.title) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+                        bottomNavItems.forEach { screen ->
+                            NavigationBarItem(
+                                icon = { Icon(screen.icon, contentDescription = null) },
+                                label = { Text(screen.title) },
+                                selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                                onClick = {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                unselectedIconColor = Color.Gray,
-                                unselectedTextColor = Color.Gray
+                                },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    unselectedIconColor = Color.Gray,
+                                    unselectedTextColor = Color.Gray
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Explore.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(BottomNavItem.Explore.route) {
-                ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = BottomNavItem.Explore.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(BottomNavItem.Explore.route) {
+                    ExploreNavigation(storyViewModel, factory, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
+                }
+                composable(BottomNavItem.Library.route) {
+                    LibraryNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
+                }
+                composable(BottomNavItem.Write.route) {
+                    WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
+                }
+                composable(BottomNavItem.Earnings.route) {
+                    androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
+                    EarningsScreen(viewModel(factory = factory))
+                }
+                composable(BottomNavItem.Profile.route) {
+                    androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
+                    ProfileNavigation(
+                        factory = factory,
+                        themeViewModel = themeViewModel,
+                        onLogout = onLogout,
+                        onShowBottomBar = { showBottomBar = it },
+                        rootNavController = navController
+                    )
+                }
             }
-            composable(BottomNavItem.Library.route) {
-                LibraryNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it })
-            }
-            composable(BottomNavItem.Write.route) {
-                WriteNavigation(storyViewModel, onShowBottomBar = { showBottomBar = it }, rootNavController = navController)
-            }
-            composable(BottomNavItem.Earnings.route) {
-                androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
-                EarningsScreen(viewModel(factory = factory))
-            }
-            composable(BottomNavItem.Profile.route) {
-                androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
-                ProfileNavigation(
-                    factory = factory,
-                    themeViewModel = themeViewModel,
-                    onLogout = onLogout,
-                    onShowBottomBar = { showBottomBar = it },
-                    rootNavController = navController
-                )
-            }
+        }
+    }
+}
+
+@Composable
+fun LibraryNavigation(storyViewModel: StoryViewModel, onShowBottomBar: (Boolean) -> Unit) {
+    val libraryNavController = rememberNavController()
+
+    NavHost(navController = libraryNavController, startDestination = "library_list") {
+        composable("library_list") {
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
+            LibraryScreen(
+                onNavigateToStoryDetail = { id -> libraryNavController.navigate("story_view/$id") },
+                viewModel = storyViewModel
+            )
+        }
+        composable("story_view/{storyId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            StoryViewScreen(
+                storyId = storyId,
+                onNavigateBack = { libraryNavController.popBackStack() },
+                onNavigateToReadPart = { sId, partId ->
+                    libraryNavController.navigate("read/$sId/$partId")
+                },
+                onNavigateToRelatedStory = { relatedId ->
+                    libraryNavController.navigate("story_view/$relatedId")
+                },
+                onNavigateToAuthorProfile = { /* TODO */ },
+                viewModel = storyViewModel
+            )
+        }
+        composable("read/{storyId}/{partId}") { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
+            val partId = backStackEntry.arguments?.getString("partId") ?: ""
+            ReadPartScreen(
+                storyId = storyId,
+                partId = partId,
+                onNavigateBack = { libraryNavController.popBackStack() },
+                onFinishReading = {
+                    libraryNavController.popBackStack("story_view/$storyId", inclusive = false)
+                },
+                onNavigateToPart = { id -> libraryNavController.navigate("read/$storyId/$id") },
+                viewModel = storyViewModel
+            )
         }
     }
 }
@@ -120,21 +178,26 @@ fun ProfileNavigation(
             )
         }
         composable(
-            "reading_list_detail/{listId}/{listName}",
+            "reading_list_detail/{listId}/{listName}?userId={userId}",
             arguments = listOf(
                 androidx.navigation.navArgument("listId") { type = androidx.navigation.NavType.StringType },
-                androidx.navigation.navArgument("listName") { type = androidx.navigation.NavType.StringType }
+                androidx.navigation.navArgument("listName") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("userId") { type = androidx.navigation.NavType.StringType; nullable = true }
             )
         ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val listId = backStackEntry.arguments?.getString("listId") ?: ""
             val listName = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("listName") ?: "", "UTF-8")
+            val userId = backStackEntry.arguments?.getString("userId")
+            val isOwner = userId == null || userId == profileViewModel.currentUserId
+            
             ReadingListDetailScreen(
                 listId = listId,
                 listName = listName,
                 onNavigateBack = { profileNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") },
-                viewModel = storyViewModel
+                viewModel = storyViewModel,
+                isOwner = isOwner
             )
         }
         composable(
@@ -165,6 +228,9 @@ fun ProfileNavigation(
                     } else {
                         profileNavController.navigate("author_profile/$id")
                     }
+                },
+                onNavigateToReadingListDetail = { id, name ->
+                    profileNavController.navigate("reading_list_detail/$id/$name?userId=$authorId")
                 },
                 storyViewModel = storyViewModel,
                 profileViewModel = profileViewModel,
@@ -300,6 +366,29 @@ fun ExploreNavigation(
                 viewModel = storyViewModel
             )
         }
+        composable(
+            "reading_list_detail/{listId}/{listName}?userId={userId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("listId") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("listName") { type = androidx.navigation.NavType.StringType },
+                androidx.navigation.navArgument("userId") { type = androidx.navigation.NavType.StringType; nullable = true }
+            )
+        ) { backStackEntry ->
+            androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
+            val listId = backStackEntry.arguments?.getString("listId") ?: ""
+            val listName = java.net.URLDecoder.decode(backStackEntry.arguments?.getString("listName") ?: "", "UTF-8")
+            val userId = backStackEntry.arguments?.getString("userId")
+            val isOwner = userId == null || userId == storyViewModel.currentUserId
+            
+            ReadingListDetailScreen(
+                listId = listId,
+                listName = listName,
+                onNavigateBack = { exploreNavController.popBackStack() },
+                onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
+                viewModel = storyViewModel,
+                isOwner = isOwner
+            )
+        }
         composable("read/{storyId}/{partId}") { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val storyId = backStackEntry.arguments?.getString("storyId") ?: ""
@@ -341,6 +430,9 @@ fun ExploreNavigation(
                     } else {
                         exploreNavController.navigate("author_profile/$id")
                     }
+                },
+                onNavigateToReadingListDetail = { id, name ->
+                    exploreNavController.navigate("reading_list_detail/$id/$name?userId=$authorId")
                 },
                 storyViewModel = storyViewModel,
                 profileViewModel = viewModel(factory = factory),

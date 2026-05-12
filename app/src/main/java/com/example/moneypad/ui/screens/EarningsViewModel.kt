@@ -91,4 +91,16 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
             repository.claimReferralReward()
         }
     }
+
+    fun upgradeAdFree(plan: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val success = when (plan) {
+                "90MIN" -> repository.upgradeToAdFree90Min()
+                "PERMANENT" -> repository.upgradeToAdFreePermanent()
+                else -> false
+            }
+            if (success) onSuccess()
+            else onError("Upgrade failed. Check your balance.")
+        }
+    }
 }

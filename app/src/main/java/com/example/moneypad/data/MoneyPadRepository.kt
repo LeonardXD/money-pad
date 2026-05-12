@@ -103,7 +103,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                     storyId = story?.id,
                     storyTitle = story?.title,
                     partId = part?.id,
-                    partTitle = part?.title
+                    partTitle = part?.title,
+                    isActorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
                 )
             )
         }
@@ -155,7 +156,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 userId = user.id,
                 type = "WELCOME",
                 actorId = "SYSTEM",
-                actorName = "Money Pad Team"
+                actorName = "Money Pad Team",
+                isActorVerified = true
             )
         )
 
@@ -173,7 +175,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                     storyId = OFFICIAL_USER_ID,
                     partId = announcement.id,
                     content = announcement.message,
-                    timestamp = announcement.timestamp
+                    timestamp = announcement.timestamp,
+                    isActorVerified = true
                 )
             )
         }
@@ -423,12 +426,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ) {
         val storyId = UUID.randomUUID().toString()
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
         val story = Story(
             id = storyId,
             authorId = currentUserId, authorName = currentUsername,
             title = title, genres = genres, overview = overview,
             coverImageUrl = coverImageUrl,
-            isPublished = isPublished, isCompleted = isCompleted, isMature = isMature
+            isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
+            isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         )
         dao.insertStory(story)
         if (isPublished) {
@@ -441,13 +446,15 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         isPublished: Boolean = false, isCompleted: Boolean = false, isMature: Boolean = false
     ): String {
         val id = UUID.randomUUID().toString()
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
         val story = Story(
             id = id,
             authorId = currentUserId, authorName = currentUsername,
             title = title, genres = genres, overview = overview,
             coverImageUrl = coverImageUrl,
             isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
-            lastUpdatedAt = System.currentTimeMillis()
+            lastUpdatedAt = System.currentTimeMillis(),
+            isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         )
         dao.insertStory(story)
         if (isPublished) {
@@ -470,9 +477,13 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun updateStory(story: Story) {
         val oldStory = dao.getStoryById(story.id)
-        dao.insertStory(story)
-        if (story.isPublished && (oldStory == null || !oldStory.isPublished)) {
-            notifyFollowers("NEW_STORY", story = story)
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
+        val updatedStory = story.copy(
+            isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
+        )
+        dao.insertStory(updatedStory)
+        if (updatedStory.isPublished && (oldStory == null || !oldStory.isPublished)) {
+            notifyFollowers("NEW_STORY", story = updatedStory)
         }
     }
 
@@ -613,6 +624,24 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun countQualifyingStories(userId: String): Int = dao.countQualifyingStories(userId)
 
     suspend fun verifyUser(userId: String) = dao.verifyUser(userId)
+
+    suspend fun upgradeToAdFree90Min(): Boolean {
+        if (currentUserId.isEmpty()) return false
+        val user = dao.getUser(currentUserId).firstOrNull() ?: return false
+        if (user.readerCoins < 500) return false
+        
+        dao.deductReaderCoins(currentUserId, 500)
+        val ninetyMinFromNow = System.currentTimeMillis() + (90 * 60 * 1000)
+        dao.updateAdFreeUntil(currentUserId, ninetyMinFromNow)
+        return true
+    }
+
+    suspend fun upgradeToAdFreePermanent(): Boolean {
+        if (currentUserId.isEmpty()) return false
+        dao.markAdFreePermanently(currentUserId)
+        return true
+    }
+
     suspend fun recordPartRead(storyId: String, partId: String) {
         dao.incrementPartReadCount(partId)
         dao.insertUserReadPart(
@@ -686,6 +715,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun sendMessage(authorId: String, message: String, parentId: String? = null) {
         val currentUser = dao.getUser(currentUserId).firstOrNull()
         val conversationId = UUID.randomUUID().toString()
+        val isSenderVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         dao.insertConversation(
             Conversation(
                 id = conversationId,
@@ -693,7 +723,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 senderName = currentUsername, message = message, 
                 senderProfileImageUrl = currentUser?.profileImageUrl,
                 parentId = parentId,
-                isSenderVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
+                isSenderVerified = isSenderVerified
             )
         )
 
@@ -714,7 +744,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                             actorProfileImageUrl = currentUser?.profileImageUrl,
                             storyId = authorId, // Target profile ID
                             partId = conversationId, // For direct navigation
-                            content = message
+                            content = message,
+                            isActorVerified = isSenderVerified
                         )
                     )
                 }
@@ -730,7 +761,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorProfileImageUrl = currentUser?.profileImageUrl,
                         storyId = authorId, // Target profile ID
                         partId = conversationId, // For direct navigation
-                        content = message
+                        content = message,
+                        isActorVerified = isSenderVerified
                     )
                 )
             }
@@ -748,7 +780,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorProfileImageUrl = currentUser?.profileImageUrl,
                         storyId = authorId, // Target profile ID
                         partId = conversationId, // For direct navigation
-                        content = message
+                        content = message,
+                        isActorVerified = isSenderVerified
                     )
                 )
             }
@@ -766,7 +799,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                         actorProfileImageUrl = currentUser?.profileImageUrl,
                         storyId = authorId, // Target profile ID
                         partId = conversationId, // For direct navigation
-                        content = message
+                        content = message,
+                        isActorVerified = isSenderVerified
                     )
                 )
             }
@@ -781,11 +815,13 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     // ── Reviews ───────────────────────────────────────────────────────────────
 
     suspend fun addReview(storyId: String, rating: Int, comment: String) {
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
         dao.insertReview(
             Review(
                 id = UUID.randomUUID().toString(),
                 storyId = storyId, userId = currentUserId,
-                username = currentUsername, rating = rating, comment = comment
+                username = currentUsername, rating = rating, comment = comment,
+                isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
             )
         )
     }
@@ -821,6 +857,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         type: String,
         content: String? = null
     ) {
+        val currentUser = dao.getUser(currentUserId).firstOrNull()
         dao.insertPartAnnotation(
             PartAnnotation(
                 id = UUID.randomUUID().toString(),
@@ -831,7 +868,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 startIndex = startIndex,
                 endIndex = endIndex,
                 type = type,
-                content = content
+                content = content,
+                isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
             )
         )
     }
@@ -877,6 +915,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     }
 
     fun getReadingLists(): Flow<List<ReadingList>> = dao.getReadingListsForUser(currentUserId)
+
+    fun getReadingLists(userId: String): Flow<List<ReadingList>> = dao.getReadingListsForUser(userId)
 
     suspend fun addStoryToReadingList(listId: String, storyId: String) {
         dao.insertReadingListStory(ReadingListStory(listId, storyId))

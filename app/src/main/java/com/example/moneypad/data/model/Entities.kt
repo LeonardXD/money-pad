@@ -29,7 +29,9 @@ data class User(
     val loginTimestamp: Long = 0L,      // epoch ms of last login, used for 7-day session check
     val onboardingStep: Int = 1,
     val onboardingCompleted: Boolean = false,
-    val isVerified: Boolean = false
+    val isVerified: Boolean = false,
+    val adFreeUntil: Long = 0L,
+    val isAdFreePermanently: Boolean = false
 )
 
 @Entity(tableName = "conversations")
@@ -68,7 +70,8 @@ data class Story(
     val commentsCount: Int = 0,
     val uniqueViews: Int = 0,
     val repeatedViews: Int = 0,
-    val lastUpdatedAt: Long = System.currentTimeMillis()
+    val lastUpdatedAt: Long = System.currentTimeMillis(),
+    val isAuthorVerified: Boolean = false
 )
 
 @Entity(tableName = "user_read_parts", primaryKeys = ["userId", "partId"])
@@ -112,7 +115,8 @@ data class Review(
     val username: String,
     val rating: Int,
     val comment: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isUserVerified: Boolean = false
 )
 
 @Entity(tableName = "user_story_likes", primaryKeys = ["userId", "storyId"])
@@ -132,7 +136,8 @@ data class PartAnnotation(
     val endIndex: Int,
     val type: String, // "LIKE" or "COMMENT"
     val content: String? = null, // Used for comments
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isUserVerified: Boolean = false
 )
 
 @Entity(tableName = "library_stories", primaryKeys = ["userId", "storyId"])
@@ -172,5 +177,6 @@ data class Notification(
     val partTitle: String? = null,
     val content: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
-    val isRead: Boolean = false
+    val isRead: Boolean = false,
+    val isActorVerified: Boolean = false
 )

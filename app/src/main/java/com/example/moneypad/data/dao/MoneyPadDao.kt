@@ -60,12 +60,12 @@ interface MoneyPadDao {
     @Query("""
         SELECT SUM(
             CASE 
-                WHEN read_count >= 110 THEN 475
-                WHEN read_count >= 80 THEN 295
-                WHEN read_count >= 40 THEN 175
-                WHEN read_count >= 25 THEN 95
-                WHEN read_count >= 15 THEN 45
-                WHEN read_count >= 5 THEN 15
+                WHEN read_count >= 110 THEN 550
+                WHEN read_count >= 80 THEN 330
+                WHEN read_count >= 40 THEN 170
+                WHEN read_count >= 25 THEN 90
+                WHEN read_count >= 15 THEN 40
+                WHEN read_count >= 5 THEN 10
                 ELSE 0 
             END
         )
@@ -150,6 +150,12 @@ interface MoneyPadDao {
 
     @Query("UPDATE users SET isVerified = 1 WHERE id = :userId")
     suspend fun verifyUser(userId: String)
+
+    @Query("UPDATE users SET adFreeUntil = :timestamp WHERE id = :userId")
+    suspend fun updateAdFreeUntil(userId: String, timestamp: Long)
+
+    @Query("UPDATE users SET isAdFreePermanently = 1 WHERE id = :userId")
+    suspend fun markAdFreePermanently(userId: String)
 
     // ── Follows ───────────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)

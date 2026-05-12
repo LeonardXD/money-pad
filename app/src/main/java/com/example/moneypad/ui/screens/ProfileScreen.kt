@@ -34,6 +34,7 @@ import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.User
+import com.example.moneypad.ui.components.ReadingListItem
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.components.VerifiedIcon
 import com.example.moneypad.ui.theme.ThemeViewModel
@@ -582,9 +583,9 @@ fun UserListDialog(
                                         text = if (isMe) "${u.username} (You)" else u.username, 
                                         fontWeight = FontWeight.Medium
                                     )
-                                    if (u.id == MoneyPadRepository.OFFICIAL_USER_ID) {
+                                    if (u.id == MoneyPadRepository.OFFICIAL_USER_ID || u.isVerified) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(14.dp))
+                                        VerifiedIcon(modifier = Modifier.size(30.dp))
                                     }
                                 }
                                 
@@ -686,7 +687,7 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
                 if (conv.isSenderVerified) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    VerifiedIcon(modifier = Modifier.size(14.dp))
+                    VerifiedIcon(modifier = Modifier.size(30.dp))
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = { 
@@ -728,7 +729,7 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                                     Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     if (reply.isSenderVerified) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                                        VerifiedIcon(modifier = Modifier.size(22.dp))
                                     }
                                 }
                                 Text(reply.message, fontSize = 13.sp)
@@ -770,94 +771,6 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                         bringIntoViewRequester.bringIntoView()
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun ReadingListItem(
-    list: com.example.moneypad.data.model.ReadingList,
-    user: com.example.moneypad.data.model.User?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Reading List?") },
-            text = { Text("Are you sure you want to delete '${list.name}'? The stories inside won't be deleted.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete()
-                    showDeleteDialog = false
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.List,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = list.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                if (list.description.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = list.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            IconButton(onClick = { showDeleteDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete List",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
-                )
             }
         }
     }

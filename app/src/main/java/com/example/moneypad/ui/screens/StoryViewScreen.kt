@@ -348,7 +348,7 @@ fun StoryViewScreen(
                                     )
                                     if (currentStory.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(16.dp))
+                                        VerifiedIcon(modifier = Modifier.size(22.dp))
                                     }
                                 }
 
@@ -501,12 +501,14 @@ fun StoryViewScreen(
 
                                 Spacer(modifier = Modifier.height(32.dp))
 
-                                Text(
-                                    text = "Reviews",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Reviews",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 if (reviews.isEmpty()) {
@@ -528,6 +530,10 @@ fun StoryViewScreen(
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 14.sp
                                                 )
+                                                if (review.isUserVerified) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    VerifiedIcon(size = 30.dp)
+                                                }
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Row {
                                                     for (i in 1..5) {

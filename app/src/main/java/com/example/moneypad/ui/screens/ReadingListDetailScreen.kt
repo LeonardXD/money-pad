@@ -29,7 +29,8 @@ fun ReadingListDetailScreen(
     listName: String,
     onNavigateBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
-    viewModel: StoryViewModel
+    viewModel: StoryViewModel,
+    isOwner: Boolean = true
 ) {
     val stories by remember(listId) { viewModel.getStoriesForReadingList(listId) }.collectAsState(initial = emptyList())
 
@@ -65,7 +66,8 @@ fun ReadingListDetailScreen(
                             story = story,
                             viewModel = viewModel,
                             onClick = { onNavigateToStoryDetail(story.id) },
-                            onRemove = { viewModel.removeStoryFromReadingList(listId, story.id) }
+                            onRemove = { viewModel.removeStoryFromReadingList(listId, story.id) },
+                            isOwner = isOwner
                         )
                     }
                 }
@@ -79,7 +81,8 @@ fun ReadingListStoryItem(
     story: Story,
     viewModel: StoryViewModel,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    isOwner: Boolean
 ) {
     val author by remember(story.authorId) { viewModel.getUser(story.authorId) }.collectAsState(initial = null)
 
@@ -127,19 +130,21 @@ fun ReadingListStoryItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (author?.isVerified == true || story.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
+                    if (story.isAuthorVerified || story.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
                         Spacer(modifier = Modifier.width(4.dp))
-                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                        VerifiedIcon(modifier = Modifier.size(30.dp))
                     }
                 }
             }
 
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Remove from list",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
-                )
+            if (isOwner) {
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove from list",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }

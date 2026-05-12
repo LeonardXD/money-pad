@@ -35,6 +35,10 @@ import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.unit.IntOffset
 
 import com.example.moneypad.utils.HtmlConverter.parseHtmlToAnnotatedString
+import com.example.moneypad.ads.AdManager
+import com.example.moneypad.ui.components.VerifiedIcon
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +51,8 @@ fun ReadPartScreen(
     viewModel: StoryViewModel,
     isPreview: Boolean = false
 ) {
+    val context = LocalContext.current
+    val activity = context as? Activity
     val story by viewModel.currentStory.collectAsState()
     val parts by viewModel.currentParts.collectAsState()
     val annotations by viewModel.partAnnotations.collectAsState()
@@ -115,6 +121,7 @@ fun ReadPartScreen(
     // Earnings Feature
     var earnedCoins by remember { mutableIntStateOf(0) }
     var progress by remember { mutableFloatStateOf(0f) }
+    val isAdShowing by AdManager.isAdShowing.collectAsState()
     
     // Optimization: Use a Ref-like object for activity time to avoid 
     // recomposing the whole screen on every scroll pixel.
@@ -125,8 +132,9 @@ fun ReadPartScreen(
     }
 
     if (!isPreview && !isPartAlreadyRead) {
-        LaunchedEffect(partId) { // Restart if chapter changes
-            progress = 0f
+        LaunchedEffect(partId, isAdShowing) { // Restart if chapter changes or ad status changes
+            if (isAdShowing) return@LaunchedEffect // Pause progress if ad is showing
+
             while (true) {
                 val currentTime = System.currentTimeMillis()
                 // Only progress if user was active within the last 3 minutes
@@ -134,8 +142,9 @@ fun ReadPartScreen(
                     // One minute to fill. 60s * 10 ticks/s = 600 ticks.
                     progress += (1f / 600f)
                     if (progress >= 1f) {
-                        earnedCoins += 5
-                        // viewModel.earnReaderCoins(5) // No longer counted per Task 2
+                        earnedCoins += 3
+                        viewModel.earnReaderCoins(3)
+                        activity?.let { AdManager.showInterstitialIfReady(it) }
                         progress = 0f
                     }
                 }
@@ -252,7 +261,10 @@ fun ReadPartScreen(
                                     
                                     if (nextPart != null) {
                                         Button(onClick = { 
-                                            if (!isPreview) viewModel.recordPartRead(storyId, partId)
+                                            if (!isPreview) {
+                                                viewModel.recordPartRead(storyId, partId)
+                                                activity?.let { AdManager.onPartRead(it) }
+                                            }
                                             onNavigateToPart(nextPart.id) 
                                         }) {
                                             Text("Next")
@@ -260,7 +272,10 @@ fun ReadPartScreen(
                                     } else if (isLastPart) {
                                         Button(
                                             onClick = {
-                                                if (!isPreview) viewModel.recordPartRead(storyId, partId)
+                                                if (!isPreview) {
+                                                    viewModel.recordPartRead(storyId, partId)
+                                                    activity?.let { AdManager.onPartRead(it) }
+                                                }
                                                 onFinishReading()
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
@@ -300,7 +315,13 @@ fun ReadPartScreen(
                                                     )
                                                     Spacer(modifier = Modifier.width(8.dp))
                                                     Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(ann.username, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                        if (ann.isUserVerified) {
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            VerifiedIcon(size = 24.dp)
+                                                        }
+                                                    }
                                                         if (ann.type == "COMMENT") {
                                                             Text(ann.content ?: "", fontSize = 14.sp)
                                                         } else {

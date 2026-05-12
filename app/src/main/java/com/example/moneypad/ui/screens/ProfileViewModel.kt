@@ -32,6 +32,8 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
     val following: StateFlow<List<User>> = repository.getFollowing(repository.currentUserId)
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    fun getReadingLists(userId: String): Flow<List<ReadingList>> = repository.getReadingLists(userId)
+
     // Settings result
     private val _settingsResult = MutableSharedFlow<Result<Unit>>(replay = 0)
     val settingsResult: SharedFlow<Result<Unit>> = _settingsResult

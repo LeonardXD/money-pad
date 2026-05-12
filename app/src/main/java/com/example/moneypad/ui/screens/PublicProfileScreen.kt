@@ -39,6 +39,7 @@ fun PublicProfileScreen(
     onNavigateBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
     onNavigateToAuthorProfile: (String) -> Unit,
+    onNavigateToReadingListDetail: (String, String) -> Unit,
     storyViewModel: StoryViewModel,
     profileViewModel: ProfileViewModel,
     initialTab: Int = 0
@@ -46,13 +47,14 @@ fun PublicProfileScreen(
     val author by profileViewModel.getUser(authorId).collectAsState(initial = null)
     val authorStories by storyViewModel.getStoriesByAuthor(authorId).collectAsState(initial = emptyList())
     val conversations by profileViewModel.getConversations(authorId).collectAsState(initial = emptyList())
+    val readingLists by profileViewModel.getReadingLists(authorId).collectAsState(initial = emptyList())
     val isFollowing by profileViewModel.isFollowing(authorId).collectAsState(initial = false)
     val authorFollowers by profileViewModel.getFollowers(authorId).collectAsState(initial = emptyList())
     val authorFollowing by profileViewModel.getFollowing(authorId).collectAsState(initial = emptyList())
     val myFollowing by profileViewModel.following.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(initialTab) }
-    val tabs = listOf("About", "Conversation", "Stories")
+    val tabs = listOf("About", "Conversation", "Stories", "Reading Lists")
     var showFollowersDialog by remember { mutableStateOf(false) }
     var showFollowingDialog by remember { mutableStateOf(false) }
 
@@ -343,6 +345,33 @@ fun PublicProfileScreen(
                             }
                         }
                     }
+                    3 -> {
+                        if (readingLists.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No reading lists yet.", color = Color.Gray)
+                                }
+                            }
+                        } else {
+                            items(readingLists) { list ->
+                                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                                    com.example.moneypad.ui.components.ReadingListItem(
+                                        list = list,
+                                        user = user,
+                                        onClick = { 
+                                            val encodedName = java.net.URLEncoder.encode(list.name, "UTF-8")
+                                            onNavigateToReadingListDetail(list.id, encodedName)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -411,7 +440,7 @@ fun ConversationItem(
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
                 if (conv.isSenderVerified) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    VerifiedIcon(modifier = Modifier.size(14.dp))
+                    VerifiedIcon(modifier = Modifier.size(24.dp))
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = { showReplyInput = !showReplyInput }) {
@@ -456,7 +485,7 @@ fun ConversationItem(
                                     Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     if (reply.isSenderVerified) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(12.dp))
+                                        VerifiedIcon(modifier = Modifier.size(28.dp))
                                     }
                                 }
                                 Text(reply.message, fontSize = 13.sp)

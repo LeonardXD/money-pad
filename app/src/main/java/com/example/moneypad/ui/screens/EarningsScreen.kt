@@ -30,6 +30,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import com.example.moneypad.data.model.Transaction
 import java.text.SimpleDateFormat
 import java.util.*
@@ -37,6 +39,7 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EarningsScreen(viewModel: EarningsViewModel) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var showWithdrawDialog by remember { mutableStateOf(false) }
     var showUpgradeDialog by remember { mutableStateOf(false) }
@@ -320,15 +323,15 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            ReferralRewardRow("Reads 5 pages", "15 Coins")
-                            ReferralRewardRow("Reads 15 pages", "45 Coins")
-                            ReferralRewardRow("Reads 25 pages", "95 Coins")
-                            ReferralRewardRow("Reads 40 pages", "175 Coins")
-                            ReferralRewardRow("Reads 80 pages", "295 Coins")
-                            ReferralRewardRow("Reads 110 pages", "475 Coins")
+                            ReferralRewardRow("Read 5 chapters", "10 Coins")
+                            ReferralRewardRow("Read 15 chapters", "30 Coins")
+                            ReferralRewardRow("Read 25 chapters", "50 Coins")
+                            ReferralRewardRow("Read 40 chapters", "80 Coins")
+                            ReferralRewardRow("Read 80 chapters", "160 Coins")
+                            ReferralRewardRow("Read 110 chapters", "220 Coins")
                         }
                         Text(
-                            "(Total of 4.75 pesos/reader)",
+                            "(Total of 550 coins/readers)",
                             fontSize = 11.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(start = 24.dp)
@@ -525,8 +528,17 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
         UpgradePlanDialog(
             onDismiss = { showUpgradeDialog = false },
             onConfirm = { plan -> 
-                showUpgradeDialog = false
-                showUpgradeSuccess = plan
+                viewModel.upgradeAdFree(
+                    plan = if (plan.contains("90")) "90MIN" else "PERMANENT",
+                    onSuccess = {
+                        showUpgradeDialog = false
+                        showUpgradeSuccess = plan
+                        Toast.makeText(context, "Successfully upgraded to $plan plan!", Toast.LENGTH_LONG).show()
+                    },
+                    onError = { error ->
+                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                    }
+                )
             }
         )
     }
@@ -577,27 +589,62 @@ fun ReferralRewardRow(label: String, reward: String) {
 
 @Composable
 fun UpgradePlanDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var selectedPlan by remember { mutableStateOf("Weekly") }
+    var selectedPlan by remember { mutableStateOf("90 Minutes Ad-Free") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Upgrade Plan") },
         text = {
             Column {
-                Text("Select a subscription plan:", fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("Select an upgrade option:", fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    RadioButton(selected = selectedPlan == "Weekly", onClick = { selectedPlan = "Weekly" })
-                    Text("Weekly - ₱50.00")
+                Card(
+                    onClick = { selectedPlan = "90 Minutes Ad-Free" },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (selectedPlan == "90 Minutes Ad-Free") 
+                            MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    border = if (selectedPlan == "90 Minutes Ad-Free") null else 
+                        androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selectedPlan == "90 Minutes Ad-Free", onClick = { selectedPlan = "90 Minutes Ad-Free" })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("90 Minutes Ad-Free", fontWeight = FontWeight.Bold)
+                            Text("Cost: 500 Coins", fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    RadioButton(selected = selectedPlan == "Monthly", onClick = { selectedPlan = "Monthly" })
-                    Text("Monthly - ₱180.00")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    RadioButton(selected = selectedPlan == "Yearly", onClick = { selectedPlan = "Yearly" })
-                    Text("Yearly - ₱1800.00")
+                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    onClick = { selectedPlan = "Permanent Ad-Free" },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (selectedPlan == "Permanent Ad-Free") 
+                            MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    border = if (selectedPlan == "Permanent Ad-Free") null else 
+                        androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selectedPlan == "Permanent Ad-Free", onClick = { selectedPlan = "Permanent Ad-Free" })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Permanent Ad-Free", fontWeight = FontWeight.Bold)
+                            Text("Cost: ₱1,499.00", fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
                 }
             }
         },

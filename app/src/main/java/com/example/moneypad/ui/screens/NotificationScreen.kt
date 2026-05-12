@@ -176,7 +176,7 @@ fun NotificationItem(
 
             NotificationText(
                 text = text,
-                isOfficial = notification.actorId == MoneyPadRepository.OFFICIAL_USER_ID
+                isVerified = notification.isActorVerified
             )
 
             if (!notification.content.isNullOrBlank()) {
@@ -210,7 +210,7 @@ fun NotificationItem(
 }
 
 @Composable
-fun NotificationText(text: String, isOfficial: Boolean = false) {
+fun NotificationText(text: String, isVerified: Boolean = false) {
     val parts = text.split("**")
     val annotatedString = buildAnnotatedString {
         parts.forEachIndexed { index, part ->
@@ -218,7 +218,8 @@ fun NotificationText(text: String, isOfficial: Boolean = false) {
                 pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
                 append(part)
                 pop()
-                if (isOfficial && index == 1) {
+                // Append verified icon if the actor (usually the first bold part) is verified
+                if (isVerified && index == 1) {
                     append(" ")
                     appendInlineContent("verified", "[verified]")
                 }
@@ -232,7 +233,7 @@ fun NotificationText(text: String, isOfficial: Boolean = false) {
         "verified" to InlineTextContent(
             Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.Center)
         ) {
-            VerifiedIcon(modifier = Modifier.size(14.dp))
+            VerifiedIcon(modifier = Modifier.size(36.dp))
         }
     )
 
