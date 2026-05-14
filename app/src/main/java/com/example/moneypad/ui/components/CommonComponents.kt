@@ -90,7 +90,7 @@ fun ClickableMessageText(
                 
                 pushStringAnnotation(tag = "USER", annotation = username)
                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
-                    append(username)
+                    append("@$username")
                 }
                 pop()
                 if (suffix.isNotEmpty()) {

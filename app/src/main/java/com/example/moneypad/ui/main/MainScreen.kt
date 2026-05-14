@@ -214,11 +214,27 @@ fun ProfileNavigation(
             val tab = backStackEntry.arguments?.getInt("initialTab") ?: 0
             val convId = backStackEntry.arguments?.getString("conversationId")
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
+            
+            val onNavigateToPublicProfile: (String) -> Unit = { idOrUsername ->
+                if (idOrUsername == profileViewModel.currentUserId || idOrUsername == profileViewModel.currentUsername) {
+                    // Navigate to self - stay on ProfileScreen but switch to Conversation tab if it's from a mention
+                    profileNavController.navigate("my_profile?initialTab=3") {
+                        popUpTo(profileNavController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                } else {
+                    profileNavController.navigate("author_profile/$idOrUsername")
+                }
+            }
+
             ProfileScreen(
                 viewModel = profileViewModel,
                 themeViewModel = themeViewModel,
                 onLogout = onLogout,
-                onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") },
+                onNavigateToPublicProfile = onNavigateToPublicProfile,
                 onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") },
                 onNavigateToReadingListDetail = { id, name -> profileNavController.navigate("reading_list_detail/$id/$name") },
                 initialTab = tab,

@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,19 @@ fun PublicProfileScreen(
     val authorFollowing by profileViewModel.getFollowing(authorId).collectAsState(initial = emptyList())
     val myFollowing by profileViewModel.following.collectAsState()
 
+    var isLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(author) {
+        if (author != null) {
+            isLoading = false
+        } else {
+            // Wait a bit to ensure it's really not found and not just loading
+            kotlinx.coroutines.delay(500)
+            if (author == null) {
+                isLoading = false
+            }
+        }
+    }
+
     var selectedTab by remember { mutableIntStateOf(initialTab) }
     val tabs = listOf("About", "Conversation", "Stories", "Reading Lists")
     var showFollowersDialog by remember { mutableStateOf(false) }
@@ -82,6 +96,18 @@ fun PublicProfileScreen(
                 listState.animateScrollToItem(6 + index)
             }
         }
+    }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (author == null) {
+        NotFoundScreen(onNavigateBack = onNavigateBack)
+        return
     }
 
     if (showFollowersDialog) {
@@ -503,33 +529,48 @@ fun ConversationItem(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
+                        .clickable { onNavigateToAuthorProfile(conv.senderId) }
+                        .weight(1f, fill = false)
                 ) {
-                    if (conv.senderProfileImageUrl != null) {
-                        AsyncImage(
-                            model = conv.senderProfileImageUrl,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (conv.senderProfileImageUrl != null) {
+                            AsyncImage(
+                                model = conv.senderProfileImageUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        conv.senderName, 
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (conv.isSenderVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon()
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(conv.senderName, fontWeight = FontWeight.Bold)
-                if (conv.isSenderVerified) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    VerifiedIcon()
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { 
                         val newLiked = !isMainLiked
@@ -576,11 +617,12 @@ fun ConversationItem(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            ClickableMessageText(
-                message = conv.message,
-                onUserClick = { username -> onNavigateToAuthorProfile(username) }
-            )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                ClickableMessageText(
+                    message = conv.message,
+                    onUserClick = { username -> onNavigateToAuthorProfile(username) }
+                )
 
             // Replies
             if (replies.isNotEmpty()) {
@@ -594,33 +636,45 @@ fun ConversationItem(
                     replies.forEach { reply ->
                         var isReplyLiked by remember(reply.id, reply.isLiked) { mutableStateOf(reply.isLiked) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
-                                contentAlignment = Alignment.Center
+                                    .weight(1f)
+                                    .clickable { onNavigateToAuthorProfile(reply.senderId) }
                             ) {
-                                if (reply.senderProfileImageUrl != null) {
-                                    AsyncImage(
-                                        model = reply.senderProfileImageUrl,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    if (reply.isSenderVerified) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon()
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (reply.senderProfileImageUrl != null) {
+                                        AsyncImage(
+                                            model = reply.senderProfileImageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
                                     }
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                        if (reply.isSenderVerified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            VerifiedIcon()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(modifier = Modifier.width(32.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 ClickableMessageText(
                                     message = reply.message,
                                     fontSize = 13.sp,

@@ -36,6 +36,9 @@ interface MoneyPadDao {
     @Query("SELECT * FROM users WHERE id = :userId")
     fun getUser(userId: String): Flow<User?>
 
+    @Query("SELECT * FROM users WHERE username = :username")
+    fun getUserByUsernameFlow(username: String): Flow<User?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: User)
 
@@ -312,6 +315,9 @@ interface MoneyPadDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM user_read_parts WHERE userId = :userId AND partId = :partId)")
     fun isPartRead(userId: String, partId: String): Flow<Boolean>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM user_read_parts WHERE userId = :userId AND partId = :partId)")
+    suspend fun hasUserReadPart(userId: String, partId: String): Boolean
 
 
     // ── Transactions ──────────────────────────────────────────────────────────

@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+data class ReaderEarningState(
+    val progress: Float = 0f,
+    val earnedCoins: Int = 0
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
@@ -122,6 +127,27 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun earnReaderCoins(amount: Int) {
         viewModelScope.launch {
             repository.earnReaderCoins(amount)
+        }
+    }
+
+    private val _readerEarningStates = MutableStateFlow<Map<String, ReaderEarningState>>(emptyMap())
+
+    fun readerEarningState(storyId: String): StateFlow<ReaderEarningState> =
+        _readerEarningStates
+            .map { states -> states[storyId] ?: ReaderEarningState() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ReaderEarningState())
+
+    fun updateReaderCoinProgress(storyId: String, progress: Float) {
+        _readerEarningStates.value = _readerEarningStates.value.toMutableMap().apply {
+            val current = get(storyId) ?: ReaderEarningState()
+            put(storyId, current.copy(progress = progress.coerceIn(0f, 1f)))
+        }
+    }
+
+    fun addReaderEarnedCoins(storyId: String, amount: Int) {
+        _readerEarningStates.value = _readerEarningStates.value.toMutableMap().apply {
+            val current = get(storyId) ?: ReaderEarningState()
+            put(storyId, current.copy(earnedCoins = current.earnedCoins + amount))
         }
     }
 
@@ -239,6 +265,12 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun recordPartRead(storyId: String, partId: String) {
         viewModelScope.launch {
             repository.recordPartRead(storyId, partId)
+        }
+    }
+
+    fun recordPartView(partId: String) {
+        viewModelScope.launch {
+            repository.recordPartView(partId)
         }
     }
 

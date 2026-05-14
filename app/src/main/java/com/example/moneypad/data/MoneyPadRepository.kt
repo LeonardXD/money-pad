@@ -5,6 +5,8 @@ import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -249,7 +251,11 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         }
     }
 
-    fun getUser(userId: String): Flow<User?> = dao.getUser(userId)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun getUser(userId: String): Flow<User?> = dao.getUser(userId).flatMapLatest { user ->
+        if (user != null) flowOf(user)
+        else dao.getUserByUsernameFlow(userId)
+    }
 
     fun getCurrentUser(): Flow<User?> = dao.getUser(currentUserId)
 
@@ -669,7 +675,11 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     }
 
     suspend fun recordPartRead(storyId: String, partId: String) {
-        dao.incrementPartReadCount(partId)
+        if (currentUserId.isEmpty()) return
+        val wasAlreadyRead = dao.hasUserReadPart(currentUserId, partId)
+        if (!wasAlreadyRead) {
+            dao.incrementPartReadCount(partId)
+        }
         dao.insertUserReadPart(
             com.example.moneypad.data.model.UserReadPart(
                 userId = currentUserId,
@@ -678,6 +688,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 readAt = System.currentTimeMillis()
             )
         )
+    }
+
+    suspend fun recordPartView(partId: String) {
+        dao.incrementPartReadCount(partId)
     }
 
     suspend fun withdraw(amount: Double, method: String, accountInfo: String, source: String = ""): Boolean {

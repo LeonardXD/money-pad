@@ -91,8 +91,11 @@ fun ReadPartScreen(
 
     LaunchedEffect(storyId, partId) {
         viewModel.getStoryById(storyId)
-        viewModel.recordRead(storyId)
-        viewModel.recordPartRead(storyId, partId)
+        if (isPreview) {
+            viewModel.recordPartView(partId)
+        } else {
+            viewModel.recordRead(storyId)
+        }
         viewModel.getAnnotationsForPart(partId)
     }
 
@@ -118,8 +121,8 @@ fun ReadPartScreen(
     val scrollState = rememberScrollState()
 
     // Earnings Feature
-    var earnedCoins by remember { mutableIntStateOf(0) }
-    var progress by remember { mutableFloatStateOf(0f) }
+    val earningStateFlow = remember(storyId) { viewModel.readerEarningState(storyId) }
+    val earningState by earningStateFlow.collectAsState()
     val isAdShowing by AdManager.isAdShowing.collectAsState()
     
     // Optimization: Use a Ref-like object for activity time to avoid 
@@ -131,21 +134,23 @@ fun ReadPartScreen(
     }
 
     if (!isPreview && !isPartAlreadyRead) {
-        LaunchedEffect(partId, isAdShowing) { // Restart if chapter changes or ad status changes
+        LaunchedEffect(storyId, partId, isAdShowing) { // Restart if chapter changes or ad status changes
             if (isAdShowing) return@LaunchedEffect // Pause progress if ad is showing
 
+            var currentProgress = earningState.progress
             while (true) {
                 val currentTime = System.currentTimeMillis()
                 // Only progress if user was active within the last 3 minutes
                 if (currentTime - activityRef.lastTime < 3 * 60 * 1000) {
                     // One minute to fill. 60s * 10 ticks/s = 600 ticks.
-                    progress += (1f / 600f)
-                    if (progress >= 1f) {
-                        earnedCoins += 3
+                    currentProgress += (1f / 600f)
+                    if (currentProgress >= 1f) {
+                        viewModel.addReaderEarnedCoins(storyId, 3)
                         viewModel.earnReaderCoins(3)
                         activity?.let { AdManager.showInterstitialIfReady(it) }
-                        progress = 0f
+                        currentProgress = 0f
                     }
+                    viewModel.updateReaderCoinProgress(storyId, currentProgress)
                 }
                 kotlinx.coroutines.delay(100)
             }
@@ -261,6 +266,7 @@ fun ReadPartScreen(
                                     if (nextPart != null) {
                                         Button(onClick = { 
                                             if (!isPreview) {
+                                                viewModel.recordPartRead(storyId, partId)
                                                 activity?.let { AdManager.onPartRead(it) }
                                             }
                                             onNavigateToPart(nextPart.id) 
@@ -271,6 +277,7 @@ fun ReadPartScreen(
                                         Button(
                                             onClick = {
                                                 if (!isPreview) {
+                                                    viewModel.recordPartRead(storyId, partId)
                                                     activity?.let { AdManager.onPartRead(it) }
                                                 }
                                                 onFinishReading()
@@ -390,14 +397,14 @@ fun ReadPartScreen(
                                                 }
                                         ) {
                                             CircularProgressIndicator(
-                                                progress = { progress },
+                                                progress = { earningState.progress },
                                                 modifier = Modifier.fillMaxSize(),
                                                 color = Color(0xFFFFD700),
                                                 strokeWidth = 4.dp,
                                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                                             )
                                             Text(
-                                                text = "+$earnedCoins",
+                                                text = "+${earningState.earnedCoins}",
                                                 fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.primary

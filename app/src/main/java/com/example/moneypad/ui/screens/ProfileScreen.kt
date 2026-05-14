@@ -102,6 +102,14 @@ fun ProfileScreen(
     var newListName by remember { mutableStateOf("") }
     var messageText by remember { mutableStateOf("") }
 
+    // Mention Suggestions for Wall Post
+    var wallMentionQuery by remember { mutableStateOf("") }
+    val wallMentionSuggestions by if (wallMentionQuery.isNotEmpty()) {
+        viewModel.searchUsersForMention(wallMentionQuery).collectAsState(initial = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<User>()) }
+    }
+
     if (showCreateListDialog) {
         AlertDialog(
             onDismissRequest = { showCreateListDialog = false },
@@ -490,31 +498,83 @@ fun ProfileScreen(
                 3 -> {
                     // Post Message Area for owner
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = messageText,
-                                onValueChange = { messageText = it },
-                                modifier = Modifier.weight(1f),
-                                placeholder = { Text("Post a message to your wall...") },
-                                maxLines = 3,
-                                shape = RoundedCornerShape(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(
-                                onClick = {
-                                    if (messageText.isNotBlank()) {
-                                        viewModel.sendMessage(user?.id ?: "", messageText)
-                                        messageText = ""
+                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                            // Mention Suggestions for Wall Post
+                            if (wallMentionSuggestions.isNotEmpty()) {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    tonalElevation = 4.dp,
+                                    color = MaterialTheme.colorScheme.surface
+                                ) {
+                                    Column {
+                                        wallMentionSuggestions.forEach { suggestedUser ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        val lastAtIndex = messageText.lastIndexOf('@')
+                                                        if (lastAtIndex != -1) {
+                                                            messageText = messageText.substring(0, lastAtIndex + 1) + suggestedUser.username + " "
+                                                            wallMentionQuery = ""
+                                                        }
+                                                    }
+                                                    .padding(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.LightGray),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (suggestedUser.profileImageUrl != null) {
+                                                        AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                    } else {
+                                                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(suggestedUser.username, fontSize = 12.sp)
+                                            }
+                                        }
                                     }
-                                },
-                                enabled = messageText.isNotBlank()
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                                OutlinedTextField(
+                                    value = messageText,
+                                    onValueChange = { 
+                                        messageText = it
+                                        // Handle mention trigger
+                                        val lastAtIndex = it.lastIndexOf('@')
+                                        if (lastAtIndex != -1 && (lastAtIndex == 0 || it[lastAtIndex - 1] == ' ')) {
+                                            wallMentionQuery = it.substring(lastAtIndex + 1)
+                                            if (wallMentionQuery.isEmpty()) wallMentionQuery = " "
+                                        } else {
+                                            wallMentionQuery = ""
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    placeholder = { Text("Post a message to your wall...") },
+                                    maxLines = 3,
+                                    shape = RoundedCornerShape(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(
+                                    onClick = {
+                                        if (messageText.isNotBlank()) {
+                                            viewModel.sendMessage(user?.id ?: "", messageText)
+                                            messageText = ""
+                                        }
+                                    },
+                                    enabled = messageText.isNotBlank()
+                                ) {
+                                    Icon(Icons.Default.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         }
                     }
@@ -716,33 +776,48 @@ fun ConversationItemForProfile(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
+                        .clickable { onNavigateToPublicProfile(conv.senderId) }
+                        .weight(1f, fill = false)
                 ) {
-                    if (conv.senderProfileImageUrl != null) {
-                        AsyncImage(
-                            model = conv.senderProfileImageUrl,
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (conv.senderProfileImageUrl != null) {
+                            AsyncImage(
+                                model = conv.senderProfileImageUrl,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        conv.senderName, 
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (conv.isSenderVerified) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        VerifiedIcon()
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(conv.senderName, fontWeight = FontWeight.Bold)
-                if (conv.isSenderVerified) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    VerifiedIcon()
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { 
                         val newLiked = !isMainLiked
@@ -789,11 +864,12 @@ fun ConversationItemForProfile(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            ClickableMessageText(
-                message = conv.message,
-                onUserClick = { username -> onNavigateToPublicProfile(username) }
-            )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                ClickableMessageText(
+                    message = conv.message,
+                    onUserClick = { username -> onNavigateToPublicProfile(username) }
+                )
 
             if (replies.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -806,33 +882,45 @@ fun ConversationItemForProfile(
                     replies.forEach { reply ->
                         var isReplyLiked by remember(reply.id, reply.isLiked) { mutableStateOf(reply.isLiked) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
-                                contentAlignment = Alignment.Center
+                                    .weight(1f)
+                                    .clickable { onNavigateToPublicProfile(reply.senderId) }
                             ) {
-                                if (reply.senderProfileImageUrl != null) {
-                                    AsyncImage(
-                                        model = reply.senderProfileImageUrl,
-                                        contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    if (reply.isSenderVerified) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon()
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (reply.senderProfileImageUrl != null) {
+                                        AsyncImage(
+                                            model = reply.senderProfileImageUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
                                     }
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                        if (reply.isSenderVerified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            VerifiedIcon()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(modifier = Modifier.width(32.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 ClickableMessageText(
                                     message = reply.message,
                                     fontSize = 13.sp,

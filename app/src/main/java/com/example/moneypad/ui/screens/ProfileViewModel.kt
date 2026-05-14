@@ -103,6 +103,7 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
     }
 
     val currentUserId: String get() = repository.currentUserId
+    val currentUsername: String get() = repository.currentUsername
 
     fun getPublishedStoriesForCurrentUser(): Flow<List<com.example.moneypad.data.model.Story>> =
         repository.getPublishedStoriesByAuthor(repository.currentUserId)
