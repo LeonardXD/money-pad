@@ -157,6 +157,21 @@ interface MoneyPadDao {
     @Query("UPDATE users SET isAdFreePermanently = 1 WHERE id = :userId")
     suspend fun markAdFreePermanently(userId: String)
 
+    @Query("UPDATE conversations SET senderProfileImageUrl = :imageUrl, senderName = :name, isSenderVerified = :isVerified WHERE senderId = :userId")
+    suspend fun updateConversationsSyncInfo(userId: String, name: String, imageUrl: String?, isVerified: Boolean)
+
+    @Query("UPDATE notifications SET actorProfileImageUrl = :imageUrl, actorName = :name, isActorVerified = :isVerified WHERE actorId = :userId")
+    suspend fun updateNotificationsSyncInfo(userId: String, name: String, imageUrl: String?, isVerified: Boolean)
+
+    @Query("UPDATE reviews SET username = :name, isUserVerified = :isVerified WHERE userId = :userId")
+    suspend fun updateReviewsSyncInfo(userId: String, name: String, isVerified: Boolean)
+
+    @Query("UPDATE part_annotations SET username = :name, isUserVerified = :isVerified WHERE userId = :userId")
+    suspend fun updatePartAnnotationsSyncInfo(userId: String, name: String, isVerified: Boolean)
+
+    @Query("UPDATE stories SET authorName = :name, isAuthorVerified = :isVerified WHERE authorId = :userId")
+    suspend fun updateStoriesSyncInfo(userId: String, name: String, isVerified: Boolean)
+
     // ── Follows ───────────────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFollow(follow: Follow)
@@ -188,6 +203,9 @@ interface MoneyPadDao {
     @Query("SELECT * FROM conversations WHERE parentId = :parentId ORDER BY timestamp ASC")
     fun getReplies(parentId: String): Flow<List<Conversation>>
 
+    @Query("UPDATE conversations SET likes = likes + :delta, isLiked = CASE WHEN :delta > 0 THEN 1 ELSE 0 END WHERE id = :id")
+    suspend fun updateConversationLikes(id: String, delta: Int)
+
     // ── Stories ───────────────────────────────────────────────────────────────
     @Query("SELECT * FROM stories WHERE isPublished = 1")
     fun getAllStories(): Flow<List<Story>>
@@ -203,6 +221,9 @@ interface MoneyPadDao {
 
     @Query("SELECT * FROM stories WHERE id = :storyId")
     suspend fun getStoryById(storyId: String): Story?
+
+    @Query("SELECT * FROM stories WHERE id = :storyId")
+    fun getStoryByIdFlow(storyId: String): Flow<Story?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStory(story: Story)
@@ -322,6 +343,15 @@ interface MoneyPadDao {
 
     @Query("UPDATE stories SET likes = (SELECT COUNT(*) FROM user_story_likes WHERE storyId = :storyId) WHERE id = :storyId")
     suspend fun updateStoryLikesCount(storyId: String)
+
+    @Query("""
+        UPDATE stories SET commentsCount = (
+            SELECT COUNT(*) FROM part_annotations 
+            WHERE partId IN (SELECT id FROM story_parts WHERE storyId = :storyId) 
+            AND type = 'COMMENT'
+        ) WHERE id = :storyId
+    """)
+    suspend fun updateStoryCommentsCount(storyId: String)
 
     // ── Part Annotations ──────────────────────────────────────────────────────
     @Insert(onConflict = OnConflictStrategy.REPLACE)

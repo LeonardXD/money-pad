@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.ui.components.BannerAdView
 import com.example.moneypad.ui.components.VerifiedIcon
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -348,7 +349,7 @@ fun StoryViewScreen(
                                     )
                                     if (currentStory.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(22.dp))
+                                        VerifiedIcon()
                                     }
                                 }
 
@@ -428,6 +429,8 @@ fun StoryViewScreen(
                                 color = Color.DarkGray.copy(alpha = 0.5f)
                             )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        BannerAdView(modifier = Modifier.padding(horizontal = 16.dp))
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 

@@ -49,6 +49,8 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
 
     fun getReplies(parentId: String): Flow<List<Conversation>> = repository.getReplies(parentId)
 
+    suspend fun getConversation(id: String): Conversation? = repository.getConversation(id)
+
     fun getFollowers(userId: String): Flow<List<User>> = repository.getFollowers(userId)
 
     fun getFollowing(userId: String): Flow<List<User>> = repository.getFollowing(userId)
@@ -78,6 +80,14 @@ class ProfileViewModel(private val repository: MoneyPadRepository) : ViewModel()
             repository.sendMessage(authorId, message, parentId)
         }
     }
+
+    fun toggleConversationLike(conversationId: String, isLiked: Boolean) {
+        viewModelScope.launch {
+            repository.toggleConversationLike(conversationId, if (isLiked) 1 else -1)
+        }
+    }
+
+    fun searchUsersForMention(query: String): Flow<List<User>> = repository.searchAuthors(query).map { it.take(5) }
 
     fun isFollowing(followedId: String): Flow<Boolean> = repository.isFollowing(followedId)
 

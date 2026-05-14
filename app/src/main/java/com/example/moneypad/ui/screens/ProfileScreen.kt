@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +36,7 @@ import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.User
+import com.example.moneypad.ui.components.ClickableMessageText
 import com.example.moneypad.ui.components.ReadingListItem
 import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.components.VerifiedIcon
@@ -49,7 +52,9 @@ fun ProfileScreen(
     onLogout: () -> Unit,
     onNavigateToPublicProfile: (String) -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
-    onNavigateToReadingListDetail: (String, String) -> Unit
+    onNavigateToReadingListDetail: (String, String) -> Unit,
+    initialTab: Int = 0,
+    initialConversationId: String? = null
 ) {
     val user by viewModel.user.collectAsState()
     val storiesPublished by viewModel.storiesPublished.collectAsState()
@@ -59,8 +64,34 @@ fun ProfileScreen(
     val following by viewModel.following.collectAsState()
     val context = LocalContext.current
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
     val tabs = listOf("About", "Stories", "Reading Lists", "Conversation")
+
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Update selectedTab if initialTab changes (e.g. on redirection)
+    LaunchedEffect(initialTab) {
+        selectedTab = initialTab
+    }
+
+    LaunchedEffect(selectedTab, initialConversationId, conversations) {
+        if (selectedTab == 3 && initialConversationId != null && conversations.isNotEmpty()) {
+            var targetId = initialConversationId
+            
+            // Try to find the parent if it's a reply
+            val conv = viewModel.getConversation(initialConversationId)
+            if (conv?.parentId != null) {
+                targetId = conv.parentId!!
+            }
+            
+            val index = conversations.indexOfFirst { it.id == targetId }
+            if (index != -1) {
+                // Scroll to the item. 
+                // Header(0), Spacer(1), Info(2), Spacer(3), Tabs(4), PostArea(5), Items(6+)
+                listState.animateScrollToItem(6 + index)
+            }
+        }
+    }
 
     var showSettings by remember { mutableStateOf(false) }
     var showSettingsScreen by remember { mutableStateOf(false) }
@@ -201,7 +232,10 @@ fun ProfileScreen(
             }
         }
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding).statusBarsPadding().imePadding()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().padding(padding).statusBarsPadding().imePadding()
+        ) {
             // ── Profile header ─────────────────────────────────────────────────
             item {
                 Box(
@@ -499,7 +533,7 @@ fun ProfileScreen(
                     } else {
                         items(conversations) { conv ->
                             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                                ConversationItemForProfile(conv, user?.id ?: "", viewModel)
+                                ConversationItemForProfile(conv, user?.id ?: "", viewModel, onNavigateToPublicProfile)
                             }
                         }
                     }
@@ -585,7 +619,7 @@ fun UserListDialog(
                                     )
                                     if (u.id == MoneyPadRepository.OFFICIAL_USER_ID || u.isVerified) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(30.dp))
+                                        VerifiedIcon()
                                     }
                                 }
                                 
@@ -652,23 +686,41 @@ private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier, onClic
 }
 
 @Composable
-fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: ProfileViewModel) {
+fun ConversationItemForProfile(
+    conv: Conversation, 
+    userId: String, 
+    viewModel: ProfileViewModel,
+    onNavigateToPublicProfile: (String) -> Unit
+) {
     val replies by viewModel.getReplies(conv.id).collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
-    var replyText by remember { mutableStateOf("") }
+    var replyText by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
 
+    var mentionQuery by remember { mutableStateOf("") }
+    val mentionSuggestions by if (mentionQuery.isNotEmpty()) {
+        viewModel.searchUsersForMention(mentionQuery).collectAsState(initial = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<User>()) }
+    }
+
+    var isMainLiked by remember(conv.id, conv.isLiked) { mutableStateOf(conv.isLiked) }
+
     Card(
-        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoViewRequester),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -687,28 +739,77 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                 Text(conv.senderName, fontWeight = FontWeight.Bold)
                 if (conv.isSenderVerified) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    VerifiedIcon(modifier = Modifier.size(30.dp))
+                    VerifiedIcon()
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = { 
-                    showReplyInput = !showReplyInput
-                }) {
-                    Text("Reply", fontSize = 12.sp)
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { 
+                        val newLiked = !isMainLiked
+                        isMainLiked = newLiked
+                        viewModel.toggleConversationLike(conv.id, newLiked)
+                    }) {
+                        Icon(
+                            if (isMainLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Like",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isMainLiked) Color.Red else Color.Gray
+                        )
+                    }
+                    Text(
+                        conv.likes.toString(),
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { 
+                            showReplyInput = true
+                            val text = "@${conv.senderName} "
+                            replyText = TextFieldValue(
+                                text = text,
+                                selection = TextRange(text.length)
+                            )
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.ChatBubbleOutline,
+                            contentDescription = "Reply",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "${replies.size} Repl${if (replies.size == 1) "y" else "ies"}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(conv.message)
+            ClickableMessageText(
+                message = conv.message,
+                onUserClick = { username -> onNavigateToPublicProfile(username) }
+            )
 
             if (replies.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Column(
-                    modifier = Modifier.padding(start = 24.dp).fillMaxWidth(),
+                    modifier = Modifier
+                        .padding(start = 24.dp)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     replies.forEach { reply ->
+                        var isReplyLiked by remember(reply.id, reply.isLiked) { mutableStateOf(reply.isLiked) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
-                                modifier = Modifier.size(24.dp).clip(CircleShape)
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -724,15 +825,55 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
                                 }
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(reply.senderName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                                     if (reply.isSenderVerified) {
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        VerifiedIcon(modifier = Modifier.size(22.dp))
+                                        VerifiedIcon()
                                     }
                                 }
-                                Text(reply.message, fontSize = 13.sp)
+                                ClickableMessageText(
+                                    message = reply.message,
+                                    fontSize = 13.sp,
+                                    onUserClick = { username -> onNavigateToPublicProfile(username) }
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = { 
+                                            val newLiked = !isReplyLiked
+                                            isReplyLiked = newLiked
+                                            viewModel.toggleConversationLike(reply.id, newLiked)
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {                                        Icon(
+                                            if (isReplyLiked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            contentDescription = "Like",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = if (isReplyLiked) Color.Red else Color.Gray
+                                        )
+                                    }
+                                    Text(
+                                        reply.likes.toString(),
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        "Reply", 
+                                        fontSize = 11.sp, 
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickable {
+                                            showReplyInput = true
+                                            val text = "@${reply.senderName} "
+                                            replyText = TextFieldValue(
+                                                text = text,
+                                                selection = TextRange(text.length)
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -740,29 +881,92 @@ fun ConversationItemForProfile(conv: Conversation, userId: String, viewModel: Pr
             }
 
             if (showReplyInput) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = replyText,
-                        onValueChange = { replyText = it },
-                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
-                        placeholder = { Text("Write a reply...", fontSize = 12.sp) },
-                        maxLines = 2,
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    IconButton(
-                        onClick = {
-                            if (replyText.isNotBlank()) {
-                                viewModel.sendMessage(userId, replyText, conv.id)
-                                replyText = ""
-                                showReplyInput = false
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    // Mention Suggestions
+                    if (mentionSuggestions.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            tonalElevation = 4.dp,
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Column {
+                                mentionSuggestions.forEach { suggestedUser ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                val lastAtIndex = replyText.text.lastIndexOf('@')
+                                                if (lastAtIndex != -1) {
+                                                    val newText = replyText.text.substring(0, lastAtIndex + 1) + suggestedUser.username + " "
+                                                    replyText = TextFieldValue(
+                                                        text = newText,
+                                                        selection = TextRange(newText.length)
+                                                    )
+                                                    mentionQuery = ""
+                                                }
+                                            }
+                                            .padding(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.LightGray),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (suggestedUser.profileImageUrl != null) {
+                                                AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                            } else {
+                                                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(suggestedUser.username, fontSize = 12.sp)
+                                    }
+                                }
                             }
-                        },
-                        enabled = replyText.isNotBlank()
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        OutlinedTextField(
+                            value = replyText,
+                            onValueChange = { 
+                                replyText = it
+                                // Handle mention trigger
+                                val text = it.text
+                                val lastAtIndex = text.lastIndexOf('@')
+                                if (lastAtIndex != -1 && (lastAtIndex == 0 || text[lastAtIndex - 1] == ' ')) {
+                                    mentionQuery = text.substring(lastAtIndex + 1)
+                                    // If query is empty, it means just @ was typed. 
+                                    // We'll set a special value to trigger showing "all" or "recent"
+                                    if (mentionQuery.isEmpty()) mentionQuery = " " 
+                                } else {
+                                    mentionQuery = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester),
+                            placeholder = { Text("Write a reply...", fontSize = 12.sp) },
+                            maxLines = 2,
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        IconButton(
+                            onClick = {
+                                if (replyText.text.isNotBlank()) {
+                                    viewModel.sendMessage(userId, replyText.text, conv.id)
+                                    replyText = TextFieldValue("")
+                                    showReplyInput = false
+                                }
+                            },
+                            enabled = replyText.text.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
                 LaunchedEffect(Unit) {

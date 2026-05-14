@@ -27,13 +27,111 @@ import com.example.moneypad.R
 import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.User
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.text.ClickableText
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+
+class BadgeShape(private val points: Int = 12, private val innerRadiusScale: Float = 0.92f) : Shape {
+    override fun createOutline(size: Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: Density): Outline {
+        val path = Path()
+        val centerX = size.width / 2f
+        val centerY = size.height / 2f
+        val radius = size.width / 2f
+        val innerRadius = radius * innerRadiusScale
+        
+        val angleStep = (2 * PI / points).toFloat()
+        val halfAngleStep = angleStep / 2f
+        
+        for (i in 0 until points) {
+            val outerAngle = i * angleStep
+            val innerAngle = outerAngle + halfAngleStep
+            
+            val ox = centerX + radius * cos(outerAngle)
+            val oy = centerY + radius * sin(outerAngle)
+            
+            if (i == 0) path.moveTo(ox, oy) else path.lineTo(ox, oy)
+            
+            val ix = centerX + innerRadius * cos(innerAngle)
+            val iy = centerY + innerRadius * sin(innerAngle)
+            path.lineTo(ix, iy)
+        }
+        path.close()
+        return Outline.Generic(path)
+    }
+}
+
 @Composable
-fun VerifiedIcon(modifier: Modifier = Modifier, size: Dp = 32.dp) {
-    Image(
-        painter = painterResource(id = R.drawable.verified_icon),
-        contentDescription = "Verified",
-        modifier = modifier.size(size)
+fun ClickableMessageText(
+    message: String,
+    modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
+    color: Color = Color.Unspecified,
+    onUserClick: (String) -> Unit
+) {
+    val annotatedString = buildAnnotatedString {
+        val words = message.split(" ")
+        words.forEachIndexed { index, word ->
+            if (word.startsWith("@") && word.length > 1) {
+                // Handle potential punctuation at the end of username
+                val cleanWord = word.substring(1)
+                val username = cleanWord.takeWhile { it.isLetterOrDigit() || it == '_' }
+                val suffix = cleanWord.substring(username.length)
+                
+                pushStringAnnotation(tag = "USER", annotation = username)
+                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)) {
+                    append(username)
+                }
+                pop()
+                if (suffix.isNotEmpty()) {
+                    append(suffix)
+                }
+            } else {
+                append(word)
+            }
+            if (index < words.size - 1) append(" ")
+        }
+    }
+
+    ClickableText(
+        text = annotatedString,
+        modifier = modifier,
+        style = LocalTextStyle.current.copy(fontSize = fontSize, color = color),
+        onClick = { offset ->
+            annotatedString.getStringAnnotations(tag = "USER", start = offset, end = offset)
+                .firstOrNull()?.let { annotation ->
+                    onUserClick(annotation.item)
+                }
+        }
     )
+}
+
+@Composable
+fun VerifiedIcon(modifier: Modifier = Modifier, size: Dp = 14.dp) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .background(Color(0xFF4CAF50), shape = BadgeShape())
+            .padding(size * 0.15f),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = "Verified",
+            tint = Color.White,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
 @Composable

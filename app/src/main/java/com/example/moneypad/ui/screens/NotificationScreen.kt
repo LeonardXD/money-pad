@@ -40,7 +40,7 @@ fun NotificationScreen(
     onBack: () -> Unit,
     onNavigateToStoryDetail: (String) -> Unit,
     onNavigateToAuthorProfile: (String) -> Unit,
-    onNavigateToConversation: (String) -> Unit,
+    onNavigateToConversation: (String, String?) -> Unit,
     viewModel: StoryViewModel
 ) {
     val notifications by viewModel.notifications.collectAsState()
@@ -94,7 +94,7 @@ fun NotificationScreen(
                             when (notification.type) {
                                 "FOLLOW" -> onNavigateToAuthorProfile(notification.actorId)
                                 "NEW_STORY", "NEW_PART", "LIKE", "READ", "REVIEW" -> notification.storyId?.let { onNavigateToStoryDetail(it) }
-                                "CONVERSATION", "REPLY" -> notification.storyId?.let { onNavigateToConversation(it) }
+                                "CONVERSATION", "REPLY", "MENTION", "CONVERSATION_LIKE" -> notification.storyId?.let { onNavigateToConversation(it, notification.partId) }
                             }
                         }
                     )
@@ -171,12 +171,19 @@ fun NotificationItem(
                         "**${notification.actorName}** replied to a conversation."
                     }
                 }
+                "MENTION" -> {
+                    "**${notification.actorName}** mentioned you in a post."
+                }
+                "CONVERSATION_LIKE" -> {
+                    "**${notification.actorName}** liked your post."
+                }
                 else -> ""
             }
 
             NotificationText(
                 text = text,
-                isVerified = notification.isActorVerified
+                isVerified = notification.isActorVerified,
+                type = notification.type
             )
 
             if (!notification.content.isNullOrBlank()) {
@@ -210,7 +217,7 @@ fun NotificationItem(
 }
 
 @Composable
-fun NotificationText(text: String, isVerified: Boolean = false) {
+fun NotificationText(text: String, isVerified: Boolean = false, type: String = "") {
     val parts = text.split("**")
     val annotatedString = buildAnnotatedString {
         parts.forEachIndexed { index, part ->
@@ -219,7 +226,7 @@ fun NotificationText(text: String, isVerified: Boolean = false) {
                 append(part)
                 pop()
                 // Append verified icon if the actor (usually the first bold part) is verified
-                if (isVerified && index == 1) {
+                if (isVerified && index == 1 && type != "WELCOME") {
                     append(" ")
                     appendInlineContent("verified", "[verified]")
                 }
@@ -231,9 +238,9 @@ fun NotificationText(text: String, isVerified: Boolean = false) {
 
     val inlineContent = mapOf(
         "verified" to InlineTextContent(
-            Placeholder(14.sp, 14.sp, PlaceholderVerticalAlign.Center)
+            Placeholder(20.sp, 20.sp, PlaceholderVerticalAlign.Center)
         ) {
-            VerifiedIcon(modifier = Modifier.size(36.dp))
+            VerifiedIcon(size = 20.dp)
         }
     )
 

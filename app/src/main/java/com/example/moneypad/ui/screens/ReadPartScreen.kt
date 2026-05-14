@@ -91,9 +91,8 @@ fun ReadPartScreen(
 
     LaunchedEffect(storyId, partId) {
         viewModel.getStoryById(storyId)
-        if (!isPreview) {
-            viewModel.recordRead(storyId)
-        }
+        viewModel.recordRead(storyId)
+        viewModel.recordPartRead(storyId, partId)
         viewModel.getAnnotationsForPart(partId)
     }
 
@@ -262,7 +261,6 @@ fun ReadPartScreen(
                                     if (nextPart != null) {
                                         Button(onClick = { 
                                             if (!isPreview) {
-                                                viewModel.recordPartRead(storyId, partId)
                                                 activity?.let { AdManager.onPartRead(it) }
                                             }
                                             onNavigateToPart(nextPart.id) 
@@ -273,7 +271,6 @@ fun ReadPartScreen(
                                         Button(
                                             onClick = {
                                                 if (!isPreview) {
-                                                    viewModel.recordPartRead(storyId, partId)
                                                     activity?.let { AdManager.onPartRead(it) }
                                                 }
                                                 onFinishReading()

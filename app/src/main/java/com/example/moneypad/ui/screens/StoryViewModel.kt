@@ -14,6 +14,7 @@ import java.util.UUID
 class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     val currentUserId: String get() = repository.currentUserId
+    val currentUsername: String get() = repository.currentUsername
 
     val stories: StateFlow<List<Story>> = repository.getAllStories()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -59,11 +60,32 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
             }
         }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    private val _currentStory = MutableStateFlow<Story?>(null)
-    val currentStory = _currentStory.asStateFlow()
+    private val _currentStoryId = MutableStateFlow<String?>(null)
+    
+    val currentStory: StateFlow<Story?> = _currentStoryId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(null)
+            else repository.getStoryByIdFlow(id)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    private val _currentParts = MutableStateFlow<List<StoryPart>>(emptyList())
-    val currentParts = _currentParts.asStateFlow()
+    val currentParts: StateFlow<List<StoryPart>> = _currentStoryId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(emptyList())
+            else {
+                // We need to check if the user is the author to decide which flow to use
+                // Since flatMapLatest can be used with multiple flows, we use a combine or similar
+                // but simpler is to just use the reactive flow from DAO which Room provides.
+                repository.getCurrentUser().flatMapLatest { user ->
+                    repository.getStoryByIdFlow(id).flatMapLatest { story ->
+                        if (story?.authorId == user?.id) {
+                            repository.getPartsForStory(id)
+                        } else {
+                            repository.getPublishedPartsForStory(id)
+                        }
+                    }
+                }
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _reviews = MutableStateFlow<List<com.example.moneypad.data.model.Review>>(emptyList())
     val reviews = _reviews.asStateFlow()
@@ -80,27 +102,16 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     }
 
     fun getStoryById(id: String) {
+        _currentStoryId.value = id
+        
         viewModelScope.launch {
-            val story = repository.getStoryById(id)
-            _currentStory.value = story
-
-            if (story != null) {
+            repository.getStoryById(id)?.let { story ->
                 repository.getUser(story.authorId).firstOrNull()?.let { author ->
                     _authorProfileImageUrl.value = author.profileImageUrl
                 }
             }
-
-            // Fetch parts based on author vs reader
-            val partsFlow = if (story?.authorId == repository.currentUserId) {
-                repository.getPartsForStory(id)
-            } else {
-                repository.getPublishedPartsForStory(id)
-            }
-            
-            partsFlow.collect {
-                _currentParts.value = it
-            }
         }
+        
         viewModelScope.launch {
             repository.getReviewsForStory(id).collect {
                 _reviews.value = it
@@ -168,7 +179,6 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
                 lastUpdatedAt = System.currentTimeMillis()
             )
             repository.updateStory(updated)
-            _currentStory.value = updated
             // Trigger navigation or success state
             _lastCreatedStoryId.value = storyId
         }
@@ -177,14 +187,12 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun publishStory(storyId: String) {
         viewModelScope.launch {
             repository.publishStory(storyId)
-            getStoryById(storyId)
         }
     }
 
     fun unpublishStory(storyId: String) {
         viewModelScope.launch {
             repository.unpublishStory(storyId)
-            getStoryById(storyId)
         }
     }
 
@@ -192,11 +200,8 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     fun addPartToStory(storyId: String, partTitle: String, content: String, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null) {
         viewModelScope.launch {
-            val currentPartsCount = _currentParts.value.size
+            val currentPartsCount = currentParts.value.size
             repository.addStoryPart(storyId, partTitle, content, currentPartsCount + 1, partId, isPublished, headerImageUrl)
-            if (isPublished) {
-                getStoryById(storyId)
-            }
         }
     }
 
@@ -204,7 +209,7 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun savePartAsDraft(storyId: String, partTitle: String, content: String, partId: String? = null, headerImageUrl: String? = null) {
         if (partTitle.isBlank() && content.isBlank()) return
         viewModelScope.launch {
-            val currentPartsCount = _currentParts.value.size
+            val currentPartsCount = currentParts.value.size
             repository.addStoryPart(
                 storyId,
                 partTitle.ifBlank { "Untitled Chapter" },
@@ -219,10 +224,9 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
 
     fun updatePartStatus(storyId: String, partId: String, title: String, content: String, isPublished: Boolean, headerImageUrl: String? = null) {
         viewModelScope.launch {
-            val part = _currentParts.value.find { it.id == partId }
-            val order = part?.order ?: (_currentParts.value.size + 1)
+            val part = currentParts.value.find { it.id == partId }
+            val order = part?.order ?: (currentParts.value.size + 1)
             repository.updateStoryPart(partId, storyId, title, content, order, isPublished, headerImageUrl)
-            getStoryById(storyId)
         }
     }
 
@@ -242,7 +246,7 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         viewModelScope.launch {
             repository.deleteStoryPart(partId)
             // Reload parts for the current story
-            _currentStory.value?.id?.let {
+            currentStory.value?.id?.let {
                 getStoryById(it)
             }
         }
@@ -267,8 +271,6 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
     fun toggleLike(storyId: String) {
         viewModelScope.launch {
             repository.toggleStoryLike(storyId)
-            // Refresh current story to update like count
-            _currentStory.value = repository.getStoryById(storyId)
         }
     }
 
@@ -292,9 +294,11 @@ class StoryViewModel(private val repository: MoneyPadRepository) : ViewModel() {
         content: String? = null
     ) {
         viewModelScope.launch {
-            repository.addPartAnnotation(partId, selectedText, startIndex, endIndex, type, content)
+            val storyId = repository.addPartAnnotation(partId, selectedText, startIndex, endIndex, type, content)
             // Refresh annotations to show the new one
             getAnnotationsForPart(partId)
+            // Refresh current story to update comment count
+            storyId?.let { getStoryById(it) }
         }
     }
 

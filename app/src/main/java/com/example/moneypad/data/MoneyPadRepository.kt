@@ -287,6 +287,15 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.updateUserSettings(currentUserId, username, birthday, gender, preferredGenres)
         currentUsername = username
         sharedPreferences.edit().putString("username", username).apply()
+        
+        // Sync user info across other tables
+        val user = dao.getUser(currentUserId).firstOrNull() ?: return Result.success(Unit)
+        dao.updateConversationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
+        dao.updateNotificationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
+        dao.updateReviewsSyncInfo(currentUserId, username, user.isVerified)
+        dao.updatePartAnnotationsSyncInfo(currentUserId, username, user.isVerified)
+        dao.updateStoriesSyncInfo(currentUserId, username, user.isVerified)
+        
         return Result.success(Unit)
     }
 
@@ -373,6 +382,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun updateUserProfile(bio: String, profileImageUrl: String?, coverImageUrl: String?) {
         dao.updateUserProfile(currentUserId, bio, profileImageUrl, coverImageUrl)
+        
+        // Sync user info across other tables
+        val user = dao.getUser(currentUserId).firstOrNull() ?: return
+        dao.updateConversationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
+        dao.updateNotificationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
+        dao.updateReviewsSyncInfo(currentUserId, user.username, user.isVerified)
+        dao.updatePartAnnotationsSyncInfo(currentUserId, user.username, user.isVerified)
+        dao.updateStoriesSyncInfo(currentUserId, user.username, user.isVerified)
     }
 
     // ── Social ────────────────────────────────────────────────────────────────
@@ -420,6 +437,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         dao.getDraftStoriesByAuthor(authorId)
 
     suspend fun getStoryById(storyId: String): Story? = dao.getStoryById(storyId)
+
+    fun getStoryByIdFlow(storyId: String): Flow<Story?> = dao.getStoryByIdFlow(storyId)
 
     suspend fun createStory(
         title: String, genres: String, overview: String, coverImageUrl: String?,
@@ -594,36 +613,43 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun recordRead(storyId: String) {
         val story = dao.getStoryById(storyId) ?: return
 
-        // Only track views and credit income if reader is NOT the author
-        if (currentUserId != story.authorId) {
-            val lastRead = dao.getLastReadTimestamp(currentUserId, storyId)
-            val now = System.currentTimeMillis()
+        val lastRead = dao.getLastReadTimestamp(currentUserId, storyId)
+        val now = System.currentTimeMillis()
+        val isAuthor = currentUserId == story.authorId
 
+        // For authors, we always allow views to increment for testing/responsiveness
+        // For others, we use the 30-minute session rule
+        if (isAuthor || lastRead == null || (now - lastRead > 30 * 60 * 1000)) {
             if (lastRead == null) {
-                // First time reading this story - Unique View
                 dao.incrementUniqueViews(storyId)
-                dao.incrementReadCount(storyId)
+            } else {
+                dao.incrementRepeatedViews(storyId)
+            }
+            dao.incrementReadCount(storyId)
 
+            // Only track income if reader is NOT the author
+            if (!isAuthor && lastRead == null) {
                 // Fetch author's verification status
                 val author = dao.getUser(story.authorId).firstOrNull()
                 val rate = if (author?.isVerified == true) 0.0005 else 0.0003
                 dao.updateAuthorIncome(story.authorId, rate)
-            } else if (now - lastRead > 30 * 60 * 1000) {
-                // Came back after at least 30 minutes - Repeated View
-                dao.incrementRepeatedViews(storyId)
-                dao.incrementReadCount(storyId)
-                
-                // Author will earn only to the unique views of his/her story, repeated views will not count anymore.
-                // So we do NOT update author income here.
             }
-            // If they read another part within 30 minutes, we don't increment anything
-            // to avoid over-counting during a single session.
         }
     }
 
     suspend fun countQualifyingStories(userId: String): Int = dao.countQualifyingStories(userId)
 
-    suspend fun verifyUser(userId: String) = dao.verifyUser(userId)
+    suspend fun verifyUser(userId: String) {
+        dao.verifyUser(userId)
+        
+        // Sync user info across other tables
+        val user = dao.getUser(userId).firstOrNull() ?: return
+        dao.updateConversationsSyncInfo(userId, user.username, user.profileImageUrl, true)
+        dao.updateNotificationsSyncInfo(userId, user.username, user.profileImageUrl, true)
+        dao.updateReviewsSyncInfo(userId, user.username, true)
+        dao.updatePartAnnotationsSyncInfo(userId, user.username, true)
+        dao.updateStoriesSyncInfo(userId, user.username, true)
+    }
 
     suspend fun upgradeToAdFree90Min(): Boolean {
         if (currentUserId.isEmpty()) return false
@@ -805,12 +831,64 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 )
             }
         }
+
+        // 3. Mention Notifications
+        val mentionRegex = Regex("@(\\w+)")
+        val mentions = mentionRegex.findAll(message).map { it.groupValues[1] }.distinct()
+        mentions.forEach { mentionedUsername ->
+            if (mentionedUsername != currentUsername) {
+                val mentionedUser = dao.getUserByUsername(mentionedUsername)
+                if (mentionedUser != null) {
+                    dao.insertNotification(
+                        Notification(
+                            id = UUID.randomUUID().toString(),
+                            userId = mentionedUser.id,
+                            type = "MENTION",
+                            actorId = currentUserId,
+                            actorName = currentUsername,
+                            actorProfileImageUrl = currentUser?.profileImageUrl,
+                            storyId = authorId, // Target profile ID
+                            partId = conversationId,
+                            content = message,
+                            isActorVerified = isSenderVerified
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun getConversations(authorId: String): Flow<List<Conversation>> =
         dao.getConversationsForAuthor(authorId)
 
     fun getReplies(parentId: String): Flow<List<Conversation>> = dao.getReplies(parentId)
+
+    suspend fun getConversation(id: String): Conversation? = dao.getConversationById(id)
+
+    suspend fun toggleConversationLike(conversationId: String, delta: Int) {
+        dao.updateConversationLikes(conversationId, delta)
+        
+        // Notification for Like
+        if (delta > 0) {
+            val conv = dao.getConversationById(conversationId)
+            val currentUser = dao.getUser(currentUserId).firstOrNull()
+            if (conv != null && conv.senderId != currentUserId) {
+                dao.insertNotification(
+                    Notification(
+                        id = UUID.randomUUID().toString(),
+                        userId = conv.senderId,
+                        type = "CONVERSATION_LIKE",
+                        actorId = currentUserId,
+                        actorName = currentUsername,
+                        actorProfileImageUrl = currentUser?.profileImageUrl,
+                        storyId = conv.authorId, // Target profile ID
+                        partId = conversationId,
+                        isActorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
+                    )
+                )
+            }
+        }
+    }
 
     // ── Reviews ───────────────────────────────────────────────────────────────
 
@@ -856,8 +934,11 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         endIndex: Int,
         type: String,
         content: String? = null
-    ) {
+    ): String? {
         val currentUser = dao.getUser(currentUserId).firstOrNull()
+        val part = dao.getStoryPartById(partId)
+        val storyId = part?.storyId
+
         dao.insertPartAnnotation(
             PartAnnotation(
                 id = UUID.randomUUID().toString(),
@@ -872,6 +953,12 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
             )
         )
+
+        if (type == "COMMENT" && storyId != null) {
+            dao.updateStoryCommentsCount(storyId)
+        }
+        
+        return storyId
     }
 
     fun getAnnotationsForPart(partId: String): Flow<List<PartAnnotation>> =

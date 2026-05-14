@@ -92,14 +92,30 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
                     androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
                     EarningsScreen(viewModel(factory = factory))
                 }
-                composable(BottomNavItem.Profile.route) {
+                composable(
+                    BottomNavItem.Profile.route + "?initialTab={initialTab}&conversationId={conversationId}",
+                    arguments = listOf(
+                        androidx.navigation.navArgument("initialTab") { 
+                            type = androidx.navigation.NavType.IntType
+                            defaultValue = 0 
+                        },
+                        androidx.navigation.navArgument("conversationId") {
+                            type = androidx.navigation.NavType.StringType
+                            nullable = true
+                        }
+                    )
+                ) { backStackEntry ->
+                    val initialTab = backStackEntry.arguments?.getInt("initialTab") ?: 0
+                    val conversationId = backStackEntry.arguments?.getString("conversationId")
                     androidx.compose.runtime.LaunchedEffect(Unit) { showBottomBar = true }
                     ProfileNavigation(
                         factory = factory,
                         themeViewModel = themeViewModel,
                         onLogout = onLogout,
                         onShowBottomBar = { showBottomBar = it },
-                        rootNavController = navController
+                        rootNavController = navController,
+                        initialTab = initialTab,
+                        initialConversationId = conversationId
                     )
                 }
             }
@@ -159,14 +175,44 @@ fun ProfileNavigation(
     themeViewModel: ThemeViewModel,
     onLogout: () -> Unit,
     onShowBottomBar: (Boolean) -> Unit,
-    rootNavController: androidx.navigation.NavController
+    rootNavController: androidx.navigation.NavController,
+    initialTab: Int = 0,
+    initialConversationId: String? = null
 ) {
     val profileNavController = rememberNavController()
     val storyViewModel: StoryViewModel = viewModel(factory = factory)
     val profileViewModel: ProfileViewModel = viewModel(factory = factory)
 
-    NavHost(navController = profileNavController, startDestination = "my_profile") {
-        composable("my_profile") {
+    androidx.compose.runtime.LaunchedEffect(initialTab, initialConversationId) {
+        val route = if (initialConversationId != null) {
+            "my_profile?initialTab=$initialTab&conversationId=$initialConversationId"
+        } else {
+            "my_profile?initialTab=$initialTab"
+        }
+        profileNavController.navigate(route) {
+            popUpTo(profileNavController.graph.findStartDestination().id) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
+    }
+
+    NavHost(navController = profileNavController, startDestination = "my_profile?initialTab=$initialTab") {
+        composable(
+            "my_profile?initialTab={initialTab}&conversationId={conversationId}",
+            arguments = listOf(
+                androidx.navigation.navArgument("initialTab") { 
+                    type = androidx.navigation.NavType.IntType
+                    defaultValue = 0 
+                },
+                androidx.navigation.navArgument("conversationId") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                }
+            )
+        ) { backStackEntry ->
+            val tab = backStackEntry.arguments?.getInt("initialTab") ?: 0
+            val convId = backStackEntry.arguments?.getString("conversationId")
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(true) }
             ProfileScreen(
                 viewModel = profileViewModel,
@@ -174,7 +220,9 @@ fun ProfileNavigation(
                 onLogout = onLogout,
                 onNavigateToPublicProfile = { id -> profileNavController.navigate("author_profile/$id") },
                 onNavigateToStoryDetail = { id -> profileNavController.navigate("story_view/$id") },
-                onNavigateToReadingListDetail = { id, name -> profileNavController.navigate("reading_list_detail/$id/$name") }
+                onNavigateToReadingListDetail = { id, name -> profileNavController.navigate("reading_list_detail/$id/$name") },
+                initialTab = tab,
+                initialConversationId = convId
             )
         }
         composable(
@@ -201,15 +249,17 @@ fun ProfileNavigation(
             )
         }
         composable(
-            "author_profile/{authorId}?initialTab={initialTab}",
+            "author_profile/{authorId}?initialTab={initialTab}&conversationId={conversationId}",
             arguments = listOf(
                 androidx.navigation.navArgument("authorId") { type = androidx.navigation.NavType.StringType },
-                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
+                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 },
+                androidx.navigation.navArgument("conversationId") { type = androidx.navigation.NavType.StringType; nullable = true }
             )
         ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
             val initialTab = backStackEntry.arguments?.getInt("initialTab") ?: 0
+            val initialConversationId = backStackEntry.arguments?.getString("conversationId")
             PublicProfileScreen(
                 authorId = authorId,
                 onNavigateBack = { profileNavController.popBackStack() },
@@ -217,8 +267,8 @@ fun ProfileNavigation(
                     profileNavController.navigate("story_view/$id")
                 },
                 onNavigateToAuthorProfile = { id -> 
-                    if (id == profileViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -234,7 +284,8 @@ fun ProfileNavigation(
                 },
                 storyViewModel = storyViewModel,
                 profileViewModel = profileViewModel,
-                initialTab = initialTab
+                initialTab = initialTab,
+                initialConversationId = initialConversationId
             )
         }
         composable("story_view/{storyId}") { backStackEntry ->
@@ -249,9 +300,9 @@ fun ProfileNavigation(
                 onNavigateToRelatedStory = { relatedId ->
                     profileNavController.navigate("story_view/$relatedId")
                 },
-                onNavigateToAuthorProfile = { id ->
-                    if (id == storyViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                onNavigateToAuthorProfile = { id -> 
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -259,6 +310,7 @@ fun ProfileNavigation(
                             restoreState = true
                         }
                     } else {
+
                         profileNavController.navigate("author_profile/$id")
                     }
                 },
@@ -298,8 +350,8 @@ fun ExploreNavigation(
             ExploreScreen(
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
                 onNavigateToAuthorProfile = { id -> 
-                    if (id == storyViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -320,8 +372,8 @@ fun ExploreNavigation(
                 onBack = { exploreNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
                 onNavigateToAuthorProfile = { id -> 
-                    if (id == storyViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -332,8 +384,28 @@ fun ExploreNavigation(
                         exploreNavController.navigate("author_profile/$id")
                     }
                 },
-                onNavigateToConversation = { authorId ->
-                    exploreNavController.navigate("author_profile/$authorId?initialTab=1")
+                onNavigateToConversation = { authorId, conversationId ->
+                    if (authorId == storyViewModel.currentUserId || authorId == storyViewModel.currentUsername) {
+                        val route = if (conversationId != null) {
+                            BottomNavItem.Profile.route + "?initialTab=3&conversationId=$conversationId"
+                        } else {
+                            BottomNavItem.Profile.route + "?initialTab=3"
+                        }
+                        rootNavController.navigate(route) {
+                            popUpTo(rootNavController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    } else {
+                        val route = if (conversationId != null) {
+                            "author_profile/$authorId?initialTab=1&conversationId=$conversationId"
+                        } else {
+                            "author_profile/$authorId?initialTab=1"
+                        }
+                        exploreNavController.navigate(route)
+                    }
                 },
                 viewModel = storyViewModel
             )
@@ -351,8 +423,8 @@ fun ExploreNavigation(
                     exploreNavController.navigate("story_view/$relatedId")
                 },
                 onNavigateToAuthorProfile = { id -> 
-                    if (id == storyViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -405,22 +477,24 @@ fun ExploreNavigation(
             )
         }
         composable(
-            "author_profile/{authorId}?initialTab={initialTab}",
+            "author_profile/{authorId}?initialTab={initialTab}&conversationId={conversationId}",
             arguments = listOf(
                 androidx.navigation.navArgument("authorId") { type = androidx.navigation.NavType.StringType },
-                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 }
+                androidx.navigation.navArgument("initialTab") { type = androidx.navigation.NavType.IntType; defaultValue = 0 },
+                androidx.navigation.navArgument("conversationId") { type = androidx.navigation.NavType.StringType; nullable = true }
             )
         ) { backStackEntry ->
             androidx.compose.runtime.LaunchedEffect(Unit) { onShowBottomBar(false) }
             val authorId = backStackEntry.arguments?.getString("authorId") ?: ""
             val initialTab = backStackEntry.arguments?.getInt("initialTab") ?: 0
+            val initialConversationId = backStackEntry.arguments?.getString("conversationId")
             PublicProfileScreen(
                 authorId = authorId,
                 onNavigateBack = { exploreNavController.popBackStack() },
                 onNavigateToStoryDetail = { id -> exploreNavController.navigate("story_view/$id") },
                 onNavigateToAuthorProfile = { id -> 
-                    if (id == storyViewModel.currentUserId) {
-                        rootNavController.navigate(BottomNavItem.Profile.route) {
+                    if (id == storyViewModel.currentUserId || id == storyViewModel.currentUsername) {
+                        rootNavController.navigate(BottomNavItem.Profile.route + "?initialTab=3") {
                             popUpTo(rootNavController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -436,7 +510,8 @@ fun ExploreNavigation(
                 },
                 storyViewModel = storyViewModel,
                 profileViewModel = viewModel(factory = factory),
-                initialTab = initialTab
+                initialTab = initialTab,
+                initialConversationId = initialConversationId
             )
         }
     }

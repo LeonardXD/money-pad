@@ -44,7 +44,9 @@ data class Conversation(
     val senderProfileImageUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val parentId: String? = null,
-    val isSenderVerified: Boolean = false
+    val isSenderVerified: Boolean = false,
+    val likes: Int = 0,
+    val isLiked: Boolean = false
 )
 
 @Entity(tableName = "follows", primaryKeys = ["followerId", "followedId"])

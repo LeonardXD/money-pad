@@ -132,7 +132,7 @@ fun ReadingListStoryItem(
                     )
                     if (story.isAuthorVerified || story.authorId == MoneyPadRepository.OFFICIAL_USER_ID) {
                         Spacer(modifier = Modifier.width(4.dp))
-                        VerifiedIcon(modifier = Modifier.size(30.dp))
+                        VerifiedIcon()
                     }
                 }
             }
