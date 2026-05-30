@@ -527,7 +527,29 @@ fun StoryViewScreen(
                                                 .fillMaxWidth()
                                                 .padding(bottom = 16.dp)
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.clickable { onNavigateToAuthorProfile(review.userId) }
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (review.userProfileImageUrl != null) {
+                                                        AsyncImage(
+                                                            model = review.userProfileImageUrl,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            contentScale = ContentScale.Crop
+                                                        )
+                                                    } else {
+                                                        Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
                                                     text = review.username,
                                                     fontWeight = FontWeight.Bold,
@@ -535,7 +557,7 @@ fun StoryViewScreen(
                                                 )
                                                 if (review.isUserVerified) {
                                                     Spacer(modifier = Modifier.width(4.dp))
-                                                    VerifiedIcon(size = 30.dp)
+                                                    VerifiedIcon(size = 16.dp)
                                                 }
                                                 Spacer(modifier = Modifier.width(8.dp))
                                                 Row {

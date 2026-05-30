@@ -188,12 +188,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             dao.incrementReferralCount(validatedReferrer)
         }
 
-        currentUserId = user.id
-        currentUsername = user.username
-        saveLoginState(currentUserId, currentUsername)
-
         // Auto-follow official account
-        followUser(OFFICIAL_USER_ID)
+        dao.insertFollow(Follow(user.id, OFFICIAL_USER_ID))
+        dao.updateFollowing(user.id, 1)
+        dao.updateFollowers(OFFICIAL_USER_ID, 1)
 
         return Result.success(user)
     }
@@ -210,8 +208,36 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     suspend fun claimReferralReward() {
         if (currentUserId.isNotEmpty()) {
-            dao.updateReaderCoins(currentUserId, 10)
-            dao.markReferralRewardClaimed(currentUserId)
+            val user = dao.getUser(currentUserId).firstOrNull() ?: return
+            if (user.isReferralRewardClaimed) return
+
+            var referrerId: String? = null
+            var notification: Notification? = null
+
+            // Prepare referrer credit and notification
+            if (user.referredBy.isNotBlank()) {
+                val referrer = dao.getUserByUsername(user.referredBy)
+                if (referrer != null) {
+                    referrerId = referrer.id
+                    notification = Notification(
+                        id = UUID.randomUUID().toString(),
+                        userId = referrer.id,
+                        type = "REFERRAL_REWARD",
+                        actorId = currentUserId,
+                        actorName = currentUsername,
+                        actorProfileImageUrl = user.profileImageUrl,
+                        content = "You earned 10 coins because $currentUsername used your referral!"
+                    )
+                }
+            }
+
+            // Execute atomically
+            dao.claimReferralRewardTransaction(
+                userId = currentUserId,
+                amount = 10,
+                referrerId = referrerId,
+                notification = notification
+            )
         }
     }
 
@@ -298,7 +324,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val user = dao.getUser(currentUserId).firstOrNull() ?: return Result.success(Unit)
         dao.updateConversationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
         dao.updateNotificationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
-        dao.updateReviewsSyncInfo(currentUserId, username, user.isVerified)
+        dao.updateReviewsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
         dao.updatePartAnnotationsSyncInfo(currentUserId, username, user.isVerified)
         dao.updateStoriesSyncInfo(currentUserId, username, user.isVerified)
         
@@ -393,7 +419,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val user = dao.getUser(currentUserId).firstOrNull() ?: return
         dao.updateConversationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
         dao.updateNotificationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
-        dao.updateReviewsSyncInfo(currentUserId, user.username, user.isVerified)
+        dao.updateReviewsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
         dao.updatePartAnnotationsSyncInfo(currentUserId, user.username, user.isVerified)
         dao.updateStoriesSyncInfo(currentUserId, user.username, user.isVerified)
     }
@@ -652,7 +678,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val user = dao.getUser(userId).firstOrNull() ?: return
         dao.updateConversationsSyncInfo(userId, user.username, user.profileImageUrl, true)
         dao.updateNotificationsSyncInfo(userId, user.username, user.profileImageUrl, true)
-        dao.updateReviewsSyncInfo(userId, user.username, true)
+        dao.updateReviewsSyncInfo(userId, user.username, user.profileImageUrl, true)
         dao.updatePartAnnotationsSyncInfo(userId, user.username, true)
         dao.updateStoriesSyncInfo(userId, user.username, true)
     }
@@ -912,7 +938,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             Review(
                 id = UUID.randomUUID().toString(),
                 storyId = storyId, userId = currentUserId,
-                username = currentUsername, rating = rating, comment = comment,
+                username = currentUsername, 
+                userProfileImageUrl = currentUser?.profileImageUrl,
+                rating = rating, comment = comment,
                 isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
             )
         )

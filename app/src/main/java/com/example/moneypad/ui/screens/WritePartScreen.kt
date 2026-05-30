@@ -482,7 +482,8 @@ fun WritePartScreen(
                                 }
                             }
                         }
-                    }
+                    },
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onBackground)
                 )
             }
 

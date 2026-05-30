@@ -160,14 +160,31 @@ interface MoneyPadDao {
     @Query("UPDATE users SET isAdFreePermanently = 1 WHERE id = :userId")
     suspend fun markAdFreePermanently(userId: String)
 
+    @androidx.room.Transaction
+    suspend fun claimReferralRewardTransaction(
+        userId: String,
+        amount: Int,
+        referrerId: String?,
+        notification: Notification?
+    ) {
+        updateReaderCoins(userId, amount)
+        if (referrerId != null) {
+            updateReaderCoins(referrerId, amount)
+        }
+        if (notification != null) {
+            insertNotification(notification)
+        }
+        markReferralRewardClaimed(userId)
+    }
+
     @Query("UPDATE conversations SET senderProfileImageUrl = :imageUrl, senderName = :name, isSenderVerified = :isVerified WHERE senderId = :userId")
     suspend fun updateConversationsSyncInfo(userId: String, name: String, imageUrl: String?, isVerified: Boolean)
 
     @Query("UPDATE notifications SET actorProfileImageUrl = :imageUrl, actorName = :name, isActorVerified = :isVerified WHERE actorId = :userId")
     suspend fun updateNotificationsSyncInfo(userId: String, name: String, imageUrl: String?, isVerified: Boolean)
 
-    @Query("UPDATE reviews SET username = :name, isUserVerified = :isVerified WHERE userId = :userId")
-    suspend fun updateReviewsSyncInfo(userId: String, name: String, isVerified: Boolean)
+    @Query("UPDATE reviews SET username = :username, userProfileImageUrl = :profileImageUrl, isUserVerified = :isVerified WHERE userId = :userId")
+    suspend fun updateReviewsSyncInfo(userId: String, username: String, profileImageUrl: String?, isVerified: Boolean)
 
     @Query("UPDATE part_annotations SET username = :name, isUserVerified = :isVerified WHERE userId = :userId")
     suspend fun updatePartAnnotationsSyncInfo(userId: String, name: String, isVerified: Boolean)

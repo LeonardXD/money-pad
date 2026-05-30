@@ -135,30 +135,30 @@ private fun ProfileInfoSection(user: User, viewModel: ProfileViewModel) {
             value = birthday,
             onValueChange = { birthday = it },
             label = { Text("Birthday (YYYY-MM-DD)") },
+            readOnly = true,
+            enabled = false,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            placeholder = { Text("e.g. 2000-01-15") }
+            trailingIcon = {
+                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Gender dropdown
-        ExposedDropdownMenuBox(expanded = genderExpanded, onExpandedChange = { genderExpanded = it }) {
-            OutlinedTextField(
-                value = gender,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Gender") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                shape = RoundedCornerShape(12.dp)
-            )
-            ExposedDropdownMenu(expanded = genderExpanded, onDismissRequest = { genderExpanded = false }) {
-                genders.forEach { g ->
-                    DropdownMenuItem(text = { Text(g) }, onClick = { gender = g; genderExpanded = false })
-                }
+        // Gender
+        OutlinedTextField(
+            value = gender,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("Gender") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            trailingIcon = {
+                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
             }
-        }
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 

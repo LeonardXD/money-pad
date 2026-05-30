@@ -68,13 +68,14 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     val appLink = "https://moneypad.app/join/${uiState.user?.username}"
 
     var showClaimRewardDialog by remember { mutableStateOf(false) }
+    var isClaiming by remember { mutableStateOf(false) }
     var referrerInput by remember { mutableStateOf("") }
     var referrerError by remember { mutableStateOf<String?>(null) }
 
     // Check if user has a referrer but hasn't claimed reward yet
     LaunchedEffect(uiState.user) {
         uiState.user?.let { user ->
-            if (user.referredBy.isNotBlank() && !user.isReferralRewardClaimed) {
+            if (!isClaiming && user.referredBy.isNotBlank() && !user.isReferralRewardClaimed) {
                 showClaimRewardDialog = true
             }
         }
@@ -101,7 +102,7 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
         ) {
             // Welcome Bonus Card (1-day grace period)
             val user = uiState.user
-            if (user != null && user.referredBy.isBlank()) {
+            if (user != null && user.referredBy.isBlank() && !user.isReferralRewardClaimed) {
                 val now = System.currentTimeMillis()
                 val gracePeriod = 24 * 60 * 60 * 1000L
                 if (now - user.signupTimestamp < gracePeriod) {

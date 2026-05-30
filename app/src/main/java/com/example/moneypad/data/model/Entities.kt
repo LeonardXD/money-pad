@@ -115,6 +115,7 @@ data class Review(
     val storyId: String,
     val userId: String,
     val username: String,
+    val userProfileImageUrl: String? = null,
     val rating: Int,
     val comment: String,
     val timestamp: Long = System.currentTimeMillis(),

@@ -43,16 +43,20 @@ fun ExploreScreen(
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
 
     var showClaimRewardDialog by remember { mutableStateOf(false) }
+    var isClaiming by remember { mutableStateOf(false) }
 
     LaunchedEffect(user) {
-        if (user != null && user?.referredBy?.isNotBlank() == true && !user!!.isReferralRewardClaimed) {
+        if (!isClaiming && user != null && user?.referredBy?.isNotBlank() == true && !user!!.isReferralRewardClaimed) {
             showClaimRewardDialog = true
         }
     }
 
     if (showClaimRewardDialog) {
         AlertDialog(
-            onDismissRequest = { showClaimRewardDialog = false },
+            onDismissRequest = { 
+                showClaimRewardDialog = false
+                isClaiming = false
+            },
             title = { 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Redeem, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -64,6 +68,7 @@ fun ExploreScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        isClaiming = true
                         viewModel.claimReferralReward()
                         showClaimRewardDialog = false
                     }
@@ -72,7 +77,10 @@ fun ExploreScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClaimRewardDialog = false }) {
+                TextButton(onClick = { 
+                    showClaimRewardDialog = false
+                    isClaiming = false
+                }) {
                     Text("Maybe Later")
                 }
             }

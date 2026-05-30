@@ -868,6 +868,7 @@ fun ConversationItemForProfile(
                 Spacer(modifier = Modifier.height(4.dp))
                 ClickableMessageText(
                     message = conv.message,
+                    color = MaterialTheme.colorScheme.onSurface,
                     onUserClick = { username -> onNavigateToPublicProfile(username) }
                 )
 
@@ -924,6 +925,7 @@ fun ConversationItemForProfile(
                                 ClickableMessageText(
                                     message = reply.message,
                                     fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     onUserClick = { username -> onNavigateToPublicProfile(username) }
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
