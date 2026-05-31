@@ -31,7 +31,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
 import android.widget.Toast
+import com.example.moneypad.ads.AdManager
 import com.example.moneypad.data.model.Transaction
 import java.text.SimpleDateFormat
 import java.util.*
@@ -54,8 +56,11 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
     val authorUsd = uiState.user?.authorIncome ?: 0.0
     val authorPhp = authorUsd * conversionRate
 
-    val readerCoins = uiState.user?.readerCoins ?: 0
+    val readerCoins = uiState.user?.readerCoins ?: 0.0
     val readerPhp = readerCoins * coinToPhpRate
+    val watchAdCooldownSeconds by viewModel.watchAdCooldownSeconds.collectAsState()
+    val isClaimingWatchAdReward by viewModel.isClaimingWatchAdReward.collectAsState()
+    var isWatchAdShowing by remember { mutableStateOf(false) }
 
     val referralPhp = uiState.referralBalance
 
@@ -286,11 +291,85 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                         ) {
                             Column {
                                 Text("Coins", fontSize = 12.sp, color = Color.Gray)
-                                Text("%,d".format(readerCoins), fontWeight = FontWeight.Bold)
+                                Text(String.format("%,.2f", readerCoins), fontWeight = FontWeight.Bold)
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("PHP Value", fontSize = 12.sp, color = Color.Gray)
                                 Text("₱${String.format("%.2f", readerPhp)}", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Watch Ads
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = Color(0xFFFF9800))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Watch Ads", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Earn 0.02 Coins per ad. A 1-minute timer starts after each ad closes.",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val canWatchAd = watchAdCooldownSeconds == 0 && !isClaimingWatchAdReward && !isWatchAdShowing
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Reward", fontSize = 12.sp, color = Color.Gray)
+                                Text("0.02 Coins", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = {
+                                    val activity = context as? Activity
+                                    if (activity == null) {
+                                        Toast.makeText(context, "Unable to show ad right now.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        isWatchAdShowing = true
+                                        AdManager.showRewardInterstitialIfReady(
+                                            activity = activity,
+                                            onAdClosed = {
+                                                isWatchAdShowing = false
+                                                viewModel.claimWatchAdReward { success ->
+                                                    val message = if (success) {
+                                                        "You earned 0.02 Coins!"
+                                                    } else {
+                                                        "Unable to credit reward. Please try again."
+                                                    }
+                                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            onUnavailable = {
+                                                isWatchAdShowing = false
+                                                Toast.makeText(context, "Ad is still loading. Please try again shortly.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        )
+                                    }
+                                },
+                                enabled = canWatchAd,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    when {
+                                        isClaimingWatchAdReward || isWatchAdShowing -> "Processing"
+                                        watchAdCooldownSeconds > 0 -> "${watchAdCooldownSeconds}s"
+                                        else -> "Watch Ad"
+                                    }
+                                )
                             }
                         }
                     }
@@ -324,15 +403,15 @@ fun EarningsScreen(viewModel: EarningsViewModel) {
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            ReferralRewardRow("Read 5 chapters", "10 Coins")
-                            ReferralRewardRow("Read 15 chapters", "30 Coins")
-                            ReferralRewardRow("Read 25 chapters", "50 Coins")
-                            ReferralRewardRow("Read 40 chapters", "80 Coins")
-                            ReferralRewardRow("Read 80 chapters", "160 Coins")
-                            ReferralRewardRow("Read 110 chapters", "220 Coins")
+                            ReferralRewardRow("Read 5 chapters + Watch 3 ads", "10 Coins")
+                            ReferralRewardRow("Read 15 chapters + Watch 5 ads", "30 Coins")
+                            ReferralRewardRow("Read 25 chapters + Watch 7 ads", "50 Coins")
+                            ReferralRewardRow("Read 40 chapters + Watch 10 ads", "80 Coins")
+                            ReferralRewardRow("Read 80 chapters + Watch 15 ads", "160 Coins")
+                            ReferralRewardRow("Read 110 chapters + Watch 20 ads", "220 Coins")
                         }
                         Text(
-                            "(Total of 550 coins/readers)",
+                            "(Total of 550 coins/referral)",
                             fontSize = 11.sp,
                             color = Color.Gray,
                             modifier = Modifier.padding(start = 24.dp)
@@ -733,12 +812,7 @@ fun WithdrawDialog(
                 
                 val minWithdrawal = when(source) {
                     "AUTHOR" -> 50.00
-                    "READER" -> when (method) {
-                        "PayPal" -> 30.0
-                        "PayMaya" -> 40.0
-                        "GCash" -> 50.0
-                        else -> 50.0
-                    }
+                    "READER" -> 3.0
                     else -> when (method) { // REFERRAL
                         "PayPal", "PayMaya" -> 40.0
                         "GCash" -> 50.0
@@ -844,12 +918,7 @@ fun WithdrawDialog(
                 
                 val minWithdrawal = when(source) {
                     "AUTHOR" -> 50.00
-                    "READER" -> when (method) {
-                        "PayPal" -> 30.0
-                        "PayMaya" -> 40.0
-                        "GCash" -> 50.0
-                        else -> 50.0
-                    }
+                    "READER" -> 3.0
                     else -> when (method) { // REFERRAL
                         "PayPal", "PayMaya" -> 40.0
                         "GCash" -> 50.0

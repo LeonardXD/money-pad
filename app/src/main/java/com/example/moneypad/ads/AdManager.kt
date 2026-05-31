@@ -182,4 +182,36 @@ object AdManager {
             onAdClosed?.invoke()
         }
     }
+
+    fun showRewardInterstitialIfReady(
+        activity: Activity,
+        onAdClosed: () -> Unit,
+        onUnavailable: () -> Unit
+    ) {
+        if (interstitialAd != null) {
+            interstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdShowedFullScreenContent() {
+                    _isAdShowing.value = true
+                }
+
+                override fun onAdDismissedFullScreenContent() {
+                    interstitialAd = null
+                    _isAdShowing.value = false
+                    loadInterstitial(activity)
+                    onAdClosed()
+                }
+
+                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                    interstitialAd = null
+                    _isAdShowing.value = false
+                    loadInterstitial(activity)
+                    onUnavailable()
+                }
+            }
+            interstitialAd?.show(activity)
+        } else {
+            loadInterstitial(activity)
+            onUnavailable()
+        }
+    }
 }

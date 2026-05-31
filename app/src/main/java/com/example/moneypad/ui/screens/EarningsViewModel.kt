@@ -7,9 +7,11 @@ import com.example.moneypad.data.model.Story
 import com.example.moneypad.data.model.Transaction
 import com.example.moneypad.data.model.User
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-import java.util.UUID
+private const val WATCH_AD_COOLDOWN_SECONDS = 60
 
 data class EarningsUiState(
     val user: User? = null,
@@ -25,6 +27,14 @@ data class EarningsUiState(
 }
 
 class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel() {
+
+    private val _watchAdCooldownSeconds = MutableStateFlow(0)
+    val watchAdCooldownSeconds: StateFlow<Int> = _watchAdCooldownSeconds.asStateFlow()
+
+    private val _isClaimingWatchAdReward = MutableStateFlow(false)
+    val isClaimingWatchAdReward: StateFlow<Boolean> = _isClaimingWatchAdReward.asStateFlow()
+
+    private var watchAdCooldownJob: Job? = null
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<EarningsUiState> = repository.getUser(repository.currentUserId)
@@ -59,19 +69,41 @@ class EarningsViewModel(private val repository: MoneyPadRepository) : ViewModel(
                 if (amount < threshold) return@launch
             }
             if (source == "READER") {
-                val minWithdrawal = when (method) {
-                    "PayPal" -> 30.0
-                    "PayMaya" -> 40.0
-                    "GCash" -> 50.0
-                    else -> 50.0
-                }
-                val readerBalance = (uiState.value.user?.readerCoins ?: 0) * 0.01
+                val minWithdrawal = 3.0
+                val readerBalance = (uiState.value.user?.readerCoins ?: 0.0) * 0.01
                 if (amount < minWithdrawal) return@launch
                 if (amount > readerBalance) return@launch
             }
             
             // Deduct balance and create transaction
             repository.withdraw(amount, method, accountInfo, source)
+        }
+    }
+
+    fun claimWatchAdReward(onResult: (Boolean) -> Unit) {
+        if (_watchAdCooldownSeconds.value > 0 || _isClaimingWatchAdReward.value) {
+            onResult(false)
+            return
+        }
+
+        startWatchAdCooldown()
+        viewModelScope.launch {
+            _isClaimingWatchAdReward.value = true
+            val success = repository.recordRewardedAdWatch()
+            _isClaimingWatchAdReward.value = false
+
+            onResult(success)
+        }
+    }
+
+    private fun startWatchAdCooldown() {
+        watchAdCooldownJob?.cancel()
+        _watchAdCooldownSeconds.value = WATCH_AD_COOLDOWN_SECONDS
+        watchAdCooldownJob = viewModelScope.launch {
+            while (_watchAdCooldownSeconds.value > 0) {
+                delay(1000)
+                _watchAdCooldownSeconds.value = (_watchAdCooldownSeconds.value - 1).coerceAtLeast(0)
+            }
         }
     }
 
