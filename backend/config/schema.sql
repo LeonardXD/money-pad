@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `coverImageUrl` VARCHAR(255) DEFAULT NULL,
   `balance` DOUBLE NOT NULL DEFAULT 0.0,
   `authorIncome` DOUBLE NOT NULL DEFAULT 0.0,
-  `readerCoins` INT NOT NULL DEFAULT 0,
-  `totalReaderCoins` INT NOT NULL DEFAULT 0,
+  `readerCoins` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `totalReaderCoins` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `birthday` VARCHAR(10) NOT NULL DEFAULT '',
   `gender` VARCHAR(20) NOT NULL DEFAULT '',
   `preferredGenres` VARCHAR(255) NOT NULL DEFAULT '',
@@ -125,6 +125,16 @@ CREATE TABLE IF NOT EXISTS `transactions` (
   KEY `idx_transactions_user` (`userId`, `timestamp` DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Rewarded Ad Watches Table
+CREATE TABLE IF NOT EXISTS `ad_watch_events` (
+  `id` VARCHAR(50) NOT NULL,
+  `userId` VARCHAR(50) NOT NULL,
+  `rewardCoins` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `watchedAt` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_ad_watch_user` (`userId`, `watchedAt` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Reviews Table
 CREATE TABLE IF NOT EXISTS `reviews` (
   `id` VARCHAR(50) NOT NULL,
@@ -214,4 +224,3 @@ CREATE TABLE IF NOT EXISTS `notifications` (
 -- Seed Official User
 INSERT IGNORE INTO `users` (id, username, email, password, bio, onboardingCompleted, onboardingStep, isVerified) 
 VALUES ('moneypad_official_id', 'moneypad', 'moneypad@moneypad.com', '@Moneypad3014', 'Official Money Pad Account', 1, 3, 1);
-

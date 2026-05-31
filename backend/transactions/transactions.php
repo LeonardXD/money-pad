@@ -3,6 +3,9 @@ require_once __DIR__ . '/../config/db.php';
 
 $action = $_GET['action'] ?? '';
 
+const WATCH_AD_REWARD_COINS = 0.02;
+const READER_WITHDRAWAL_MIN_PHP = 3.00;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = getJsonInput();
 } else {
@@ -30,7 +33,21 @@ switch ($action) {
                 $stmtUpdate = $pdo->prepare("UPDATE users SET authorIncome = authorIncome - ? WHERE id = ?");
                 $stmtUpdate->execute([$amount, $userId]);
             } else if ($source === 'READER') {
-                $coins = (int)($amount * 100);
+                if ($amount < READER_WITHDRAWAL_MIN_PHP) {
+                    $pdo->rollBack();
+                    respondError("Minimum reader withdrawal is PHP 3.00");
+                }
+
+                $stmtBalance = $pdo->prepare("SELECT readerCoins FROM users WHERE id = ?");
+                $stmtBalance->execute([$userId]);
+                $readerCoins = (double)($stmtBalance->fetchColumn() ?: 0.0);
+                $coins = round($amount * 100, 2);
+
+                if ($readerCoins < $coins) {
+                    $pdo->rollBack();
+                    respondError("Insufficient reader balance");
+                }
+
                 $stmtUpdate = $pdo->prepare("UPDATE users SET readerCoins = readerCoins - ? WHERE id = ?");
                 $stmtUpdate->execute([$coins, $userId]);
             } else if ($source === 'REFERRAL') {
@@ -49,6 +66,52 @@ switch ($action) {
         } catch (Exception $e) {
             $pdo->rollBack();
             respondError("Withdrawal transaction failed: " . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'record_ad_watch':
+        $id = $input['id'] ?? '';
+        $userId = $input['userId'] ?? '';
+        $watchedAt = (int)($input['watchedAt'] ?? 0);
+
+        if (empty($id) || empty($userId)) {
+            respondError("Missing ad watch inputs");
+        }
+
+        if ($watchedAt <= 0) {
+            $watchedAt = round(microtime(true) * 1000);
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            $stmtUser = $pdo->prepare("SELECT 1 FROM users WHERE id = ?");
+            $stmtUser->execute([$userId]);
+            if (!$stmtUser->fetchColumn()) {
+                $pdo->rollBack();
+                respondError("User not found", 404);
+            }
+
+            $stmtInsert = $pdo->prepare("INSERT INTO ad_watch_events (id, userId, rewardCoins, watchedAt) VALUES (?, ?, ?, ?)");
+            $stmtInsert->execute([$id, $userId, WATCH_AD_REWARD_COINS, $watchedAt]);
+
+            $stmtCoins = $pdo->prepare("UPDATE users SET readerCoins = readerCoins + ?, totalReaderCoins = totalReaderCoins + ? WHERE id = ?");
+            $stmtCoins->execute([WATCH_AD_REWARD_COINS, WATCH_AD_REWARD_COINS, $userId]);
+
+            $stmtBalance = $pdo->prepare("SELECT readerCoins, totalReaderCoins FROM users WHERE id = ?");
+            $stmtBalance->execute([$userId]);
+            $balances = $stmtBalance->fetch();
+
+            $pdo->commit();
+            respondJson([
+                "success" => true,
+                "rewardCoins" => WATCH_AD_REWARD_COINS,
+                "readerCoins" => (double)$balances['readerCoins'],
+                "totalReaderCoins" => (double)$balances['totalReaderCoins']
+            ]);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            respondError("Failed to record ad watch: " . $e->getMessage(), 500);
         }
         break;
 
@@ -129,23 +192,24 @@ switch ($action) {
             respondError("Missing username");
         }
 
-        // 1. Calculate total referral coins
+        // 1. Calculate total referral coins from both referred reading and rewarded ad watching.
         $stmtCoins = $pdo->prepare("
             SELECT SUM(
                 CASE 
-                    WHEN read_count >= 110 THEN 550
-                    WHEN read_count >= 80 THEN 330
-                    WHEN read_count >= 40 THEN 170
-                    WHEN read_count >= 25 THEN 90
-                    WHEN read_count >= 15 THEN 40
-                    WHEN read_count >= 5 THEN 10
+                    WHEN read_count >= 110 AND ad_count >= 20 THEN 550
+                    WHEN read_count >= 80 AND ad_count >= 15 THEN 330
+                    WHEN read_count >= 40 AND ad_count >= 10 THEN 170
+                    WHEN read_count >= 25 AND ad_count >= 7 THEN 90
+                    WHEN read_count >= 15 AND ad_count >= 5 THEN 40
+                    WHEN read_count >= 5 AND ad_count >= 3 THEN 10
                     ELSE 0 
                 END
             )
             FROM (
-                SELECT u.id, COUNT(DISTINCT urp.partId) as read_count
+                SELECT u.id, COUNT(DISTINCT urp.partId) as read_count, COUNT(DISTINCT awe.id) as ad_count
                 FROM users u
                 LEFT JOIN user_read_parts urp ON u.id = urp.userId
+                LEFT JOIN ad_watch_events awe ON u.id = awe.userId
                 WHERE u.referredBy = ?
                 GROUP BY u.id
             ) AS subquery

@@ -35,8 +35,8 @@ switch ($action) {
             $user['following'] = (int)$user['following'];
             $user['balance'] = (double)$user['balance'];
             $user['authorIncome'] = (double)$user['authorIncome'];
-            $user['readerCoins'] = (int)$user['readerCoins'];
-            $user['totalReaderCoins'] = (int)$user['totalReaderCoins'];
+            $user['readerCoins'] = (double)$user['readerCoins'];
+            $user['totalReaderCoins'] = (double)$user['totalReaderCoins'];
             $user['referralCount'] = (int)$user['referralCount'];
             $user['isReferralRewardClaimed'] = (bool)$user['isReferralRewardClaimed'];
             $user['onboardingStep'] = (int)$user['onboardingStep'];
@@ -144,8 +144,8 @@ switch ($action) {
             $user['following'] = (int)$user['following'];
             $user['balance'] = (double)$user['balance'];
             $user['authorIncome'] = (double)$user['authorIncome'];
-            $user['readerCoins'] = (int)$user['readerCoins'];
-            $user['totalReaderCoins'] = (int)$user['totalReaderCoins'];
+            $user['readerCoins'] = (double)$user['readerCoins'];
+            $user['totalReaderCoins'] = (double)$user['totalReaderCoins'];
             $user['referralCount'] = (int)$user['referralCount'];
             $user['isReferralRewardClaimed'] = (bool)$user['isReferralRewardClaimed'];
             $user['onboardingStep'] = (int)$user['onboardingStep'];

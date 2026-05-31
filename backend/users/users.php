@@ -34,8 +34,8 @@ switch ($action) {
             $user['following'] = (int)$user['following'];
             $user['balance'] = (double)$user['balance'];
             $user['authorIncome'] = (double)$user['authorIncome'];
-            $user['readerCoins'] = (int)$user['readerCoins'];
-            $user['totalReaderCoins'] = (int)$user['totalReaderCoins'];
+            $user['readerCoins'] = (double)$user['readerCoins'];
+            $user['totalReaderCoins'] = (double)$user['totalReaderCoins'];
             $user['referralCount'] = (int)$user['referralCount'];
             $user['isReferralRewardClaimed'] = (bool)$user['isReferralRewardClaimed'];
             $user['onboardingStep'] = (int)$user['onboardingStep'];
@@ -218,8 +218,8 @@ switch ($action) {
             $author['following'] = (int)$author['following'];
             $author['balance'] = (double)$author['balance'];
             $author['authorIncome'] = (double)$author['authorIncome'];
-            $author['readerCoins'] = (int)$author['readerCoins'];
-            $author['totalReaderCoins'] = (int)$author['totalReaderCoins'];
+            $author['readerCoins'] = (double)$author['readerCoins'];
+            $author['totalReaderCoins'] = (double)$author['totalReaderCoins'];
             $author['referralCount'] = (int)$author['referralCount'];
             $author['isReferralRewardClaimed'] = (bool)$author['isReferralRewardClaimed'];
             $author['onboardingStep'] = (int)$author['onboardingStep'];
@@ -279,9 +279,16 @@ switch ($action) {
         $userId = $input['userId'] ?? '';
         $timestamp = (int)($input['timestamp'] ?? 0);
         $permanent = (bool)($input['permanent'] ?? false);
+        $coinsDelta = isset($input['coinsDelta']) ? (double)$input['coinsDelta'] : null;
 
         if (empty($userId)) {
             respondError("Missing user ID");
+        }
+
+        if ($coinsDelta !== null) {
+            $stmt = $pdo->prepare("UPDATE users SET readerCoins = readerCoins + ?, totalReaderCoins = totalReaderCoins + ? WHERE id = ?");
+            $stmt->execute([$coinsDelta, $coinsDelta, $userId]);
+            respondJson(["success" => true]);
         }
 
         if ($permanent) {
