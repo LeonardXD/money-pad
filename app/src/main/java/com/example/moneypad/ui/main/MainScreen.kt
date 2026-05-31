@@ -49,7 +49,7 @@ fun MainScreen(factory: ViewModelFactory, themeViewModel: ThemeViewModel, onLogo
                             NavigationBarItem(
                                 icon = { Icon(screen.icon, contentDescription = null) },
                                 label = { Text(screen.title) },
-                                selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                                selected = currentDestination?.hierarchy?.any { it.route?.substringBefore("?") == screen.route } == true,
                                 onClick = {
                                     navController.navigate(screen.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
