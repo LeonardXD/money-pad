@@ -340,7 +340,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun earnReaderCoins(amount: Int) {
         if (currentUserId.isNotEmpty()) {
             try {
-                api.updateAdFree(mapOf("userId" to currentUserId, "coinsDelta" to amount))
+                api.updateAdFree(UpdateAdFreeRequest(userId = currentUserId, coinsDelta = amount))
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -355,10 +355,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val watchedAt = System.currentTimeMillis()
         return try {
             val response = api.recordAdWatch(
-                mapOf(
-                    "id" to eventId,
-                    "userId" to currentUserId,
-                    "watchedAt" to watchedAt
+                RecordAdWatchRequest(
+                    id = eventId,
+                    userId = currentUserId,
+                    watchedAt = watchedAt
                 )
             )
 
@@ -1176,7 +1176,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         
         val ninetyMinFromNow = System.currentTimeMillis() + (90 * 60 * 1000)
         try {
-            api.updateAdFree(mapOf("userId" to currentUserId, "timestamp" to ninetyMinFromNow, "permanent" to false))
+            api.updateAdFree(UpdateAdFreeRequest(userId = currentUserId, timestamp = ninetyMinFromNow, permanent = false))
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -1192,7 +1192,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
         var apiSuccess = false
         try {
-            val response = api.updateAdFree(mapOf("userId" to currentUserId, "timestamp" to 0, "permanent" to true))
+            val response = api.updateAdFree(UpdateAdFreeRequest(userId = currentUserId, timestamp = 0, permanent = true))
             if (response.isSuccessful && response.body()?.get("success") == true) {
                 apiSuccess = true
             }
@@ -1258,14 +1258,14 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val now = System.currentTimeMillis()
         try {
             api.withdraw(
-                mapOf(
-                    "id" to transactionId,
-                    "userId" to currentUserId,
-                    "amount" to amount,
-                    "method" to method,
-                    "accountInfo" to accountInfo,
-                    "source" to source,
-                    "timestamp" to now
+                WithdrawRequest(
+                    id = transactionId,
+                    userId = currentUserId,
+                    amount = amount,
+                    method = method,
+                    accountInfo = accountInfo,
+                    source = source,
+                    timestamp = now
                 )
             )
         } catch (e: Exception) {
@@ -1441,10 +1441,10 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun toggleConversationLike(conversationId: String, delta: Int) {
         try {
             api.toggleConversationLike(
-                mapOf(
-                    "conversationId" to conversationId,
-                    "delta" to delta,
-                    "userId" to currentUserId
+                ToggleConversationLikeRequest(
+                    conversationId = conversationId,
+                    delta = delta,
+                    userId = currentUserId
                 )
             )
         } catch (e: Exception) {
@@ -1611,7 +1611,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
         val now = System.currentTimeMillis()
         try {
-            val response = api.addStoryToLibrary(mapOf("userId" to currentUserId, "storyId" to storyId, "downloadedAt" to now))
+            val response = api.addStoryToLibrary(AddStoryToLibraryRequest(userId = currentUserId, storyId = storyId, downloadedAt = now))
             if (response.isSuccessful) {
                 dao.insertLibraryStory(LibraryStory(currentUserId, storyId, now))
                 return Result.success(Unit)
@@ -1722,7 +1722,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun addStoryToReadingList(listId: String, storyId: String) {
         val now = System.currentTimeMillis()
         try {
-            api.addStoryToReadingList(mapOf("listId" to listId, "storyId" to storyId, "addedAt" to now))
+            api.addStoryToReadingList(AddStoryToReadingListRequest(listId = listId, storyId = storyId, addedAt = now))
         } catch (e: Exception) {
             e.printStackTrace()
         }

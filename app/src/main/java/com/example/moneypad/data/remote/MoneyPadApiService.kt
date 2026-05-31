@@ -57,7 +57,7 @@ interface MoneyPadApiService {
     suspend fun verifyUser(@Body body: Map<String, String>): Response<Map<String, Boolean>>
 
     @POST("users/users.php?action=update_ad_free")
-    suspend fun updateAdFree(@Body body: Map<String, Any>): Response<Map<String, Boolean>>
+    suspend fun updateAdFree(@Body body: UpdateAdFreeRequest): Response<Map<String, Boolean>>
 
 
     // ── Stories ───────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ interface MoneyPadApiService {
     suspend fun getReplies(@Query("parentId") parentId: String): Response<List<Conversation>>
 
     @POST("interactions/interactions.php?action=toggle_conversation_like")
-    suspend fun toggleConversationLike(@Body body: Map<String, Any>): Response<Map<String, Boolean>>
+    suspend fun toggleConversationLike(@Body body: ToggleConversationLikeRequest): Response<Map<String, Boolean>>
 
     @POST("interactions/interactions.php?action=add_review")
     suspend fun addReview(@Body review: Review): Response<Map<String, Boolean>>
@@ -192,7 +192,7 @@ interface MoneyPadApiService {
 
     // ── Library ───────────────────────────────────────────────────────────────
     @POST("library/library.php?action=add_library")
-    suspend fun addStoryToLibrary(@Body body: Map<String, Any>): Response<Map<String, Boolean>>
+    suspend fun addStoryToLibrary(@Body body: AddStoryToLibraryRequest): Response<Map<String, Boolean>>
 
     @POST("library/library.php?action=remove_library")
     suspend fun removeStoryFromLibrary(@Body body: Map<String, String>): Response<Map<String, Boolean>>
@@ -210,7 +210,7 @@ interface MoneyPadApiService {
     suspend fun getReadingLists(@Query("userId") userId: String): Response<List<ReadingList>>
 
     @POST("library/library.php?action=add_to_reading_list")
-    suspend fun addStoryToReadingList(@Body body: Map<String, Any>): Response<Map<String, Boolean>>
+    suspend fun addStoryToReadingList(@Body body: AddStoryToReadingListRequest): Response<Map<String, Boolean>>
 
     @POST("library/library.php?action=remove_from_reading_list")
     suspend fun removeStoryFromReadingList(@Body body: Map<String, String>): Response<Map<String, Boolean>>
@@ -221,7 +221,7 @@ interface MoneyPadApiService {
 
     // ── Transactions ──────────────────────────────────────────────────────────
     @POST("transactions/transactions.php?action=withdraw")
-    suspend fun withdraw(@Body body: Map<String, Any>): Response<Map<String, Boolean>>
+    suspend fun withdraw(@Body body: WithdrawRequest): Response<Map<String, Boolean>>
 
     @GET("transactions/transactions.php?action=get_transactions")
     suspend fun getTransactions(@Query("userId") userId: String): Response<List<Transaction>>
@@ -230,7 +230,7 @@ interface MoneyPadApiService {
     suspend fun claimReferralReward(@Body body: Map<String, String>): Response<Map<String, Boolean>>
 
     @POST("transactions/transactions.php?action=record_ad_watch")
-    suspend fun recordAdWatch(@Body body: Map<String, Any>): Response<Map<String, Any>>
+    suspend fun recordAdWatch(@Body body: RecordAdWatchRequest): Response<Map<String, Any>>
 
     @GET("transactions/transactions.php?action=get_referral_stats")
     suspend fun getReferralStats(@Query("username") username: String): Response<Map<String, Any>>
