@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -28,6 +29,7 @@ import org.json.JSONObject
 private const val SESSION_DURATION_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
 private const val MINIMUM_ONBOARDING_AGE = 16
 private const val MAX_PREFERRED_GENRES = 5
+private const val WATCH_AD_REWARD_COINS = 0.02
 
 private val DEFAULT_STORY_GENRES = listOf(
     "Romance", "Fantasy", "Mystery", "Sci-Fi", "Horror",
@@ -42,6 +44,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     private val sharedPreferences = context.getSharedPreferences("moneypad_prefs", Context.MODE_PRIVATE)
     private val api = RetrofitClient.apiService
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val referralCoinsOverrides = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val referralAuthorWithdrawalOverrides = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Double>>(emptyMap())
 
     var currentUserId: String = sharedPreferences.getString("userId", "") ?: ""
     var currentUsername: String = sharedPreferences.getString("username", "") ?: ""
@@ -249,7 +253,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
                     dao.claimReferralRewardTransaction(
                         userId = currentUserId,
-                        amount = 10,
+                        amount = 10.0,
                         referrerId = referrerId,
                         notification = null
                     )
@@ -340,7 +344,33 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            dao.updateReaderCoins(currentUserId, amount)
+            dao.updateReaderCoins(currentUserId, amount.toDouble())
+        }
+    }
+
+    suspend fun recordRewardedAdWatch(): Boolean {
+        if (currentUserId.isEmpty()) return false
+
+        val eventId = UUID.randomUUID().toString()
+        val watchedAt = System.currentTimeMillis()
+        return try {
+            val response = api.recordAdWatch(
+                mapOf(
+                    "id" to eventId,
+                    "userId" to currentUserId,
+                    "watchedAt" to watchedAt
+                )
+            )
+
+            if (response.isSuccessful) {
+                dao.updateReaderCoins(currentUserId, WATCH_AD_REWARD_COINS)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
@@ -1150,7 +1180,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        dao.deductReaderCoins(currentUserId, 500)
+        dao.deductReaderCoins(currentUserId, 500.0)
         dao.updateAdFreeUntil(currentUserId, ninetyMinFromNow)
         return true
     }
@@ -1245,9 +1275,9 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         if (source == "AUTHOR") {
             dao.deductAuthorIncome(currentUserId, amount)
         } else if (source == "READER") {
-            val coinsToDeduct = (amount * 100).toInt()
+            val coinsToDeduct = amount * 100
             dao.deductReaderCoins(currentUserId, coinsToDeduct)
-        } else {
+        } else if (source != "REFERRAL") {
             dao.deductBalance(currentUserId, amount)
         }
         
@@ -1284,17 +1314,28 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             try {
                 val response = api.getReferralStats(username)
                 if (response.isSuccessful && response.body() != null) {
-                    // Let the stats sync update other lists
+                    val body = response.body()!!
+                    val totalReferralCoins = (body["totalReferralCoins"] as? Number)?.toInt() ?: 0
+                    val referralAuthorWithdrawals = (body["referralAuthorWithdrawals"] as? Number)?.toDouble() ?: 0.0
+                    referralCoinsOverrides.value = referralCoinsOverrides.value + (username to totalReferralCoins)
+                    referralAuthorWithdrawalOverrides.value =
+                        referralAuthorWithdrawalOverrides.value + (username to referralAuthorWithdrawals)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
-        return dao.getTotalReferralCoins(username).map { it ?: 0 }
+        return combine(
+            dao.getTotalReferralCoins(username).map { it ?: 0 },
+            referralCoinsOverrides
+        ) { local, overrides -> overrides[username] ?: local }
     }
 
     fun getReferralAuthorWithdrawals(username: String): Flow<Double> =
-        dao.getReferralAuthorWithdrawals(username).map { it ?: 0.0 }
+        combine(
+            dao.getReferralAuthorWithdrawals(username).map { it ?: 0.0 },
+            referralAuthorWithdrawalOverrides
+        ) { local, overrides -> overrides[username] ?: local }
 
     fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> {
         repositoryScope.launch {

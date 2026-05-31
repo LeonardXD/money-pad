@@ -229,6 +229,9 @@ interface MoneyPadApiService {
     @POST("transactions/transactions.php?action=claim_referral_reward")
     suspend fun claimReferralReward(@Body body: Map<String, String>): Response<Map<String, Boolean>>
 
+    @POST("transactions/transactions.php?action=record_ad_watch")
+    suspend fun recordAdWatch(@Body body: Map<String, Any>): Response<Map<String, Any>>
+
     @GET("transactions/transactions.php?action=get_referral_stats")
     suspend fun getReferralStats(@Query("username") username: String): Response<Map<String, Any>>
 

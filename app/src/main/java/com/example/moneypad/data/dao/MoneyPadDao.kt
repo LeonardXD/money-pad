@@ -49,7 +49,7 @@ interface MoneyPadDao {
     suspend fun updateAuthorIncome(userId: String, amount: Double)
 
     @Query("UPDATE users SET readerCoins = readerCoins + :amount, totalReaderCoins = totalReaderCoins + :amount WHERE id = :userId")
-    suspend fun updateReaderCoins(userId: String, amount: Int)
+    suspend fun updateReaderCoins(userId: String, amount: Double)
 
     @Query("UPDATE users SET balance = balance - :amount WHERE id = :userId")
     suspend fun deductBalance(userId: String, amount: Double)
@@ -58,7 +58,7 @@ interface MoneyPadDao {
     suspend fun deductAuthorIncome(userId: String, amount: Double)
 
     @Query("UPDATE users SET readerCoins = readerCoins - :amount WHERE id = :userId")
-    suspend fun deductReaderCoins(userId: String, amount: Int)
+    suspend fun deductReaderCoins(userId: String, amount: Double)
 
     @Query("""
         SELECT SUM(
@@ -163,7 +163,7 @@ interface MoneyPadDao {
     @androidx.room.Transaction
     suspend fun claimReferralRewardTransaction(
         userId: String,
-        amount: Int,
+        amount: Double,
         referrerId: String?,
         notification: Notification?
     ) {

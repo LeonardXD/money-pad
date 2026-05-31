@@ -16,8 +16,8 @@ data class User(
     val coverImageUrl: String? = null,
     val balance: Double = 0.0,
     val authorIncome: Double = 0.0,
-    val readerCoins: Int = 0,
-    val totalReaderCoins: Int = 0,      // lifetime reader coins earned
+    val readerCoins: Double = 0.0,
+    val totalReaderCoins: Double = 0.0,      // lifetime reader coins earned
     // New fields
     val birthday: String = "",          // "YYYY-MM-DD"
     val gender: String = "",            // "Male" | "Female" | "Non-binary" | "Prefer not to say"

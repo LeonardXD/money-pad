@@ -24,7 +24,7 @@ import com.example.moneypad.data.model.*
         ReadingListStory::class,
         Notification::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
