@@ -52,7 +52,7 @@ fun String?.toBackendUri(): String? {
     }
     
     if (cleanPath != null) {
-        return com.example.moneypad.data.remote.RetrofitClient.BASE_URL + cleanPath
+        return com.example.moneypad.data.remote.RetrofitClient.baseUrl + cleanPath
     }
     
     // If it's an absolute HTTP URL, handle trycloudflare.com dynamic subdomains
@@ -64,7 +64,7 @@ fun String?.toBackendUri(): String? {
             } else {
                 pathPart
             }
-            return com.example.moneypad.data.remote.RetrofitClient.BASE_URL + pathWithoutBackend
+            return com.example.moneypad.data.remote.RetrofitClient.baseUrl + pathWithoutBackend
         }
         return this
     }

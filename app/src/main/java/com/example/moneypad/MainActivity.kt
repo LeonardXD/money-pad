@@ -4,10 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -17,6 +29,7 @@ import androidx.navigation.navDeepLink
 import androidx.navigation.NavType
 import com.example.moneypad.data.AppDatabase
 import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.data.remote.RetrofitClient
 import com.example.moneypad.ui.ViewModelFactory
 import com.example.moneypad.ui.auth.LoginScreen
 import com.example.moneypad.ui.auth.SignupScreen
@@ -46,48 +59,94 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = androidx.compose.ui.platform.LocalContext.current
-            val database = remember { AppDatabase.getDatabase(context) }
-            val repository = remember { MoneyPadRepository(context, database.moneyPadDao()) }
-            val factory = remember { ViewModelFactory(repository) }
-            val themeViewModel: ThemeViewModel = viewModel(factory = factory)
-            val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
 
-            val currentUser by remember(repository.currentUserId) { repository.getCurrentUser() }.collectAsState(initial = null)
+            // --- Server URL Dialog State ---
+            var showUrlDialog by remember { mutableStateOf(true) }
+            var urlText by remember { mutableStateOf(RetrofitClient.getSavedUrl(context)) }
 
-            LaunchedEffect(currentUser) {
-                AdManager.setUser(currentUser)
-            }
-
-            // Determine start destination
-            val startDestination = remember(currentUser) {
-                if (repository.hasActiveSession()) {
-                    if (currentUser != null && currentUser?.onboardingCompleted == false) {
-                        "onboarding"
-                    } else {
-                        "main"
+            if (showUrlDialog) {
+                AlertDialog(
+                    onDismissRequest = { /* Block dismiss — user must tap Connect */ },
+                    title = {
+                        Text(
+                            text = "Server Configuration",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Column {
+                            Text(
+                                text = "Paste your backend URL below:",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = urlText,
+                                onValueChange = { urlText = it },
+                                label = { Text("Backend URL") },
+                                placeholder = { Text("https://xxx.trycloudflare.com/backend/") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                RetrofitClient.initialize(context, urlText.trim())
+                                showUrlDialog = false
+                            },
+                            enabled = urlText.isNotBlank()
+                        ) {
+                            Text("Connect")
+                        }
                     }
-                } else {
-                    "login"
+                )
+            } else {
+                // --- App content (only after URL is confirmed) ---
+                val database = remember { AppDatabase.getDatabase(context) }
+                val repository = remember { MoneyPadRepository(context, database.moneyPadDao()) }
+                val factory = remember { ViewModelFactory(repository) }
+                val themeViewModel: ThemeViewModel = viewModel(factory = factory)
+                val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
+
+                val currentUser by remember(repository.currentUserId) { repository.getCurrentUser() }.collectAsState(initial = null)
+
+                LaunchedEffect(currentUser) {
+                    AdManager.setUser(currentUser)
                 }
-            }
 
-            LaunchedEffect(Unit) {
-                repository.initUser()
-            }
-
-            val timeUntilNextAd by AdManager.timeUntilNextAd.collectAsState()
-            LaunchedEffect(timeUntilNextAd) {
-                if (timeUntilNextAd <= 0) {
-                    AdManager.checkAndShowTimerAd(this@MainActivity)
-                }
-            }
-
-            MoneyPadTheme(darkTheme = isDarkTheme) {
-                Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
-                    if (repository.hasActiveSession() && currentUser == null) {
-                         // Loading state or just show a blank screen while loading user
+                // Determine start destination
+                val startDestination = remember(currentUser) {
+                    if (repository.hasActiveSession()) {
+                        if (currentUser != null && currentUser?.onboardingCompleted == false) {
+                            "onboarding"
+                        } else {
+                            "main"
+                        }
                     } else {
-                         MoneyPadApp(factory, themeViewModel, startDestination)
+                        "login"
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    repository.initUser()
+                }
+
+                val timeUntilNextAd by AdManager.timeUntilNextAd.collectAsState()
+                LaunchedEffect(timeUntilNextAd) {
+                    if (timeUntilNextAd <= 0) {
+                        AdManager.checkAndShowTimerAd(this@MainActivity)
+                    }
+                }
+
+                MoneyPadTheme(darkTheme = isDarkTheme) {
+                    Scaffold(modifier = Modifier.fillMaxSize()) { _ ->
+                        if (repository.hasActiveSession() && currentUser == null) {
+                             // Loading state or just show a blank screen while loading user
+                        } else {
+                             MoneyPadApp(factory, themeViewModel, startDestination)
+                        }
                     }
                 }
             }
