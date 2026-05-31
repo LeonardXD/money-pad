@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
             val themeViewModel: ThemeViewModel = viewModel(factory = factory)
             val isDarkTheme by themeViewModel.isDarkTheme.collectAsState()
 
-            val currentUser by repository.getCurrentUser().collectAsState(initial = null)
+            val currentUser by remember(repository.currentUserId) { repository.getCurrentUser() }.collectAsState(initial = null)
 
             LaunchedEffect(currentUser) {
                 AdManager.setUser(currentUser)

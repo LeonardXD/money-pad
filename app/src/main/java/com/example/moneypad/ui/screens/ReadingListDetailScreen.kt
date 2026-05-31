@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Story
+import com.example.moneypad.utils.toBackendUri
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.ui.components.VerifiedIcon
 
@@ -101,7 +102,7 @@ fun ReadingListStoryItem(
         ) {
             val placeholderCover = "https://picsum.photos/seed/${story.id}/200/300"
             AsyncImage(
-                model = story.coverImageUrl?.ifBlank { placeholderCover } ?: placeholderCover,
+                model = (story.coverImageUrl?.ifBlank { placeholderCover } ?: placeholderCover).toBackendUri(),
                 contentDescription = "Cover for ${story.title}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

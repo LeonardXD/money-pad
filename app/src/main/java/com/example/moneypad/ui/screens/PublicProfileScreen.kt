@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.utils.toBackendUri
 import com.example.moneypad.data.model.Conversation
 import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.ClickableMessageText
@@ -50,13 +51,13 @@ fun PublicProfileScreen(
     initialTab: Int = 0,
     initialConversationId: String? = null
 ) {
-    val author by profileViewModel.getUser(authorId).collectAsState(initial = null)
-    val authorStories by storyViewModel.getStoriesByAuthor(authorId).collectAsState(initial = emptyList())
-    val conversations by profileViewModel.getConversations(authorId).collectAsState(initial = emptyList())
-    val readingLists by profileViewModel.getReadingLists(authorId).collectAsState(initial = emptyList())
-    val isFollowing by profileViewModel.isFollowing(authorId).collectAsState(initial = false)
-    val authorFollowers by profileViewModel.getFollowers(authorId).collectAsState(initial = emptyList())
-    val authorFollowing by profileViewModel.getFollowing(authorId).collectAsState(initial = emptyList())
+    val author by remember(authorId) { profileViewModel.getUser(authorId) }.collectAsState(initial = null)
+    val authorStories by remember(authorId) { storyViewModel.getStoriesByAuthor(authorId) }.collectAsState(initial = emptyList())
+    val conversations by remember(authorId) { profileViewModel.getConversations(authorId) }.collectAsState(initial = emptyList())
+    val readingLists by remember(authorId) { profileViewModel.getReadingLists(authorId) }.collectAsState(initial = emptyList())
+    val isFollowing by remember(authorId) { profileViewModel.isFollowing(authorId) }.collectAsState(initial = false)
+    val authorFollowers by remember(authorId) { profileViewModel.getFollowers(authorId) }.collectAsState(initial = emptyList())
+    val authorFollowing by remember(authorId) { profileViewModel.getFollowing(authorId) }.collectAsState(initial = emptyList())
     val myFollowing by profileViewModel.following.collectAsState()
 
     var isLoading by remember { mutableStateOf(true) }
@@ -187,7 +188,7 @@ fun PublicProfileScreen(
                         ) {
                             if (user.coverImageUrl != null) {
                                 AsyncImage(
-                                    model = user.coverImageUrl,
+                                    model = user.coverImageUrl.toBackendUri(),
                                     contentDescription = "Cover Image",
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
@@ -213,7 +214,7 @@ fun PublicProfileScreen(
                             ) {
                                 if (user.profileImageUrl != null) {
                                     AsyncImage(
-                                        model = user.profileImageUrl,
+                                        model = user.profileImageUrl.toBackendUri(),
                                         contentDescription = "Profile Picture",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
@@ -334,7 +335,7 @@ fun PublicProfileScreen(
                                 // Mention Suggestions for Wall Post
                                 var wallMentionQuery by remember { mutableStateOf("") }
                                 val wallMentionSuggestions by if (wallMentionQuery.isNotEmpty()) {
-                                    profileViewModel.searchUsersForMention(wallMentionQuery).collectAsState(initial = emptyList())
+                                    remember(wallMentionQuery) { profileViewModel.searchUsersForMention(wallMentionQuery) }.collectAsState(initial = emptyList())
                                 } else {
                                     remember { mutableStateOf(emptyList<User>()) }
                                 }
@@ -362,7 +363,7 @@ fun PublicProfileScreen(
                                                 ) {
                                                     Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.LightGray)) {
                                                         if (suggestedUser.profileImageUrl != null) {
-                                                            AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                            AsyncImage(model = suggestedUser.profileImageUrl.toBackendUri(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                                         }
                                                     }
                                                     Spacer(modifier = Modifier.width(8.dp))
@@ -485,7 +486,7 @@ fun PublicProfileScreen(
 }
 
 @Composable
-fun AboutTabReadOnly(bio: String) {
+fun AboutTabReadOnly(bio: String?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -494,8 +495,8 @@ fun AboutTabReadOnly(bio: String) {
         Text("About", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = if (bio.isBlank()) "No bio yet." else bio,
-            color = if (bio.isBlank()) Color.Gray else Color.Unspecified
+            text = if (bio.isNullOrBlank()) "No bio yet." else bio,
+            color = if (bio.isNullOrBlank()) Color.Gray else Color.Unspecified
         )
     }
 }
@@ -507,7 +508,7 @@ fun ConversationItem(
     profileViewModel: ProfileViewModel,
     onNavigateToAuthorProfile: (String) -> Unit
 ) {
-    val replies by profileViewModel.getReplies(conv.id).collectAsState(initial = emptyList())
+    val replies by remember(conv.id) { profileViewModel.getReplies(conv.id) }.collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
@@ -516,7 +517,7 @@ fun ConversationItem(
 
     var mentionQuery by remember { mutableStateOf("") }
     val mentionSuggestions by if (mentionQuery.isNotEmpty()) {
-        profileViewModel.searchUsersForMention(mentionQuery).collectAsState(initial = emptyList())
+        remember(mentionQuery) { profileViewModel.searchUsersForMention(mentionQuery) }.collectAsState(initial = emptyList())
     } else {
         remember { mutableStateOf(emptyList<User>()) }
     }
@@ -549,7 +550,7 @@ fun ConversationItem(
                     ) {
                         if (conv.senderProfileImageUrl != null) {
                             AsyncImage(
-                                model = conv.senderProfileImageUrl,
+                                model = conv.senderProfileImageUrl.toBackendUri(),
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -651,7 +652,7 @@ fun ConversationItem(
                                 ) {
                                     if (reply.senderProfileImageUrl != null) {
                                         AsyncImage(
-                                            model = reply.senderProfileImageUrl,
+                                            model = reply.senderProfileImageUrl.toBackendUri(),
                                             contentDescription = null,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
@@ -752,7 +753,7 @@ fun ConversationItem(
                                     ) {
                                         Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.LightGray)) {
                                             if (suggestedUser.profileImageUrl != null) {
-                                                AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                AsyncImage(model = suggestedUser.profileImageUrl.toBackendUri(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))

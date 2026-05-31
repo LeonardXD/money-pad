@@ -42,6 +42,7 @@ import com.example.moneypad.ui.components.StatItem
 import com.example.moneypad.ui.components.VerifiedIcon
 import com.example.moneypad.ui.theme.ThemeViewModel
 import com.example.moneypad.utils.ImageUtils
+import com.example.moneypad.utils.toBackendUri
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -105,7 +106,7 @@ fun ProfileScreen(
     // Mention Suggestions for Wall Post
     var wallMentionQuery by remember { mutableStateOf("") }
     val wallMentionSuggestions by if (wallMentionQuery.isNotEmpty()) {
-        viewModel.searchUsersForMention(wallMentionQuery).collectAsState(initial = emptyList())
+        remember(wallMentionQuery) { viewModel.searchUsersForMention(wallMentionQuery) }.collectAsState(initial = emptyList())
     } else {
         remember { mutableStateOf(emptyList<User>()) }
     }
@@ -223,8 +224,7 @@ fun ProfileScreen(
         )
     }
 
-    val publishedStories by viewModel
-        .getPublishedStoriesForCurrentUser()
+    val publishedStories by remember { viewModel.getPublishedStoriesForCurrentUser() }
         .collectAsState(initial = emptyList())
 
     Scaffold(
@@ -261,7 +261,7 @@ fun ProfileScreen(
                     ) {
                         if (user?.coverImageUrl != null) {
                             AsyncImage(
-                                model = user?.coverImageUrl,
+                                model = user?.coverImageUrl.toBackendUri(),
                                 contentDescription = "Cover Image",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -309,7 +309,7 @@ fun ProfileScreen(
                         ) {
                             if (user?.profileImageUrl != null) {
                                 AsyncImage(
-                                    model = user?.profileImageUrl,
+                                    model = user?.profileImageUrl.toBackendUri(),
                                     contentDescription = "Profile Picture",
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
@@ -527,7 +527,7 @@ fun ProfileScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     if (suggestedUser.profileImageUrl != null) {
-                                                        AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                        AsyncImage(model = suggestedUser.profileImageUrl.toBackendUri(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                                     } else {
                                                         Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
                                                     }
@@ -659,7 +659,7 @@ fun UserListDialog(
                                 ) {
                                     if (u.profileImageUrl != null) {
                                         AsyncImage(
-                                            model = u.profileImageUrl,
+                                            model = u.profileImageUrl.toBackendUri(),
                                             contentDescription = null,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
@@ -718,7 +718,7 @@ private fun ProfileStoryItem(story: Story, modifier: Modifier = Modifier, onClic
             ) {
                 if (story.coverImageUrl != null) {
                     AsyncImage(
-                        model = story.coverImageUrl,
+                        model = story.coverImageUrl.toBackendUri(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -752,7 +752,7 @@ fun ConversationItemForProfile(
     viewModel: ProfileViewModel,
     onNavigateToPublicProfile: (String) -> Unit
 ) {
-    val replies by viewModel.getReplies(conv.id).collectAsState(initial = emptyList())
+    val replies by remember(conv.id) { viewModel.getReplies(conv.id) }.collectAsState(initial = emptyList())
     var showReplyInput by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf(TextFieldValue("")) }
     val focusRequester = remember { FocusRequester() }
@@ -761,7 +761,7 @@ fun ConversationItemForProfile(
 
     var mentionQuery by remember { mutableStateOf("") }
     val mentionSuggestions by if (mentionQuery.isNotEmpty()) {
-        viewModel.searchUsersForMention(mentionQuery).collectAsState(initial = emptyList())
+        remember(mentionQuery) { viewModel.searchUsersForMention(mentionQuery) }.collectAsState(initial = emptyList())
     } else {
         remember { mutableStateOf(emptyList<User>()) }
     }
@@ -796,7 +796,7 @@ fun ConversationItemForProfile(
                     ) {
                         if (conv.senderProfileImageUrl != null) {
                             AsyncImage(
-                                model = conv.senderProfileImageUrl,
+                                model = conv.senderProfileImageUrl.toBackendUri(),
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -898,7 +898,7 @@ fun ConversationItemForProfile(
                                 ) {
                                     if (reply.senderProfileImageUrl != null) {
                                         AsyncImage(
-                                            model = reply.senderProfileImageUrl,
+                                            model = reply.senderProfileImageUrl.toBackendUri(),
                                             contentDescription = null,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
@@ -1004,7 +1004,7 @@ fun ConversationItemForProfile(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (suggestedUser.profileImageUrl != null) {
-                                                AsyncImage(model = suggestedUser.profileImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                                AsyncImage(model = suggestedUser.profileImageUrl.toBackendUri(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                                             } else {
                                                 Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
                                             }

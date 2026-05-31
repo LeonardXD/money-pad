@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.moneypad.R
 import com.example.moneypad.data.model.Story
+import com.example.moneypad.utils.toBackendUri
 import com.example.moneypad.data.model.User
 
 import androidx.compose.foundation.shape.CircleShape
@@ -161,7 +162,7 @@ fun StoryCard(story: Story, onClick: () -> Unit) {
             ) {
                 if (story.coverImageUrl != null) {
                     AsyncImage(
-                        model = story.coverImageUrl,
+                        model = story.coverImageUrl.toBackendUri(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -348,7 +349,7 @@ fun PublishedStoryCard(story: Story, onClick: () -> Unit, onDelete: () -> Unit) 
                     ) {
                         if (story.coverImageUrl != null) {
                             AsyncImage(
-                                model = story.coverImageUrl,
+                                model = story.coverImageUrl.toBackendUri(),
                                 contentDescription = null,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -428,7 +429,7 @@ fun DraftStoryCard(
                     contentAlignment = Alignment.Center
                 ) {
                     if (story.coverImageUrl != null) {
-                        AsyncImage(model = story.coverImageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        AsyncImage(model = story.coverImageUrl.toBackendUri(), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     } else {
                         Icon(Icons.Default.Book, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     }
@@ -482,7 +483,7 @@ fun CarouselStoryCard(
             Box(modifier = Modifier.fillMaxSize()) {
                 if (story.coverImageUrl != null) {
                     AsyncImage(
-                        model = story.coverImageUrl,
+                        model = story.coverImageUrl.toBackendUri(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

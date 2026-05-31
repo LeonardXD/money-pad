@@ -30,16 +30,20 @@ class OnboardingViewModel(private val repository: MoneyPadRepository) : ViewMode
         viewModelScope.launch {
             repository.getCurrentUser().filterNotNull().collect { user ->
                 _uiState.update { state ->
-                    val birthParts = user.birthday.split("-")
-                    state.copy(
-                        user = user,
-                        currentStep = user.onboardingStep,
-                        selectedGender = user.gender,
-                        birthYear = birthParts.getOrNull(0) ?: "",
-                        birthMonth = birthParts.getOrNull(1) ?: "",
-                        birthDay = birthParts.getOrNull(2) ?: "",
-                        selectedGenres = user.preferredGenres.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                    )
+                    if (state.user == null) {
+                        val birthParts = user.birthday.split("-")
+                        state.copy(
+                            user = user,
+                            currentStep = user.onboardingStep,
+                            selectedGender = user.gender,
+                            birthYear = birthParts.getOrNull(0) ?: "",
+                            birthMonth = birthParts.getOrNull(1) ?: "",
+                            birthDay = birthParts.getOrNull(2) ?: "",
+                            selectedGenres = user.preferredGenres.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                        )
+                    } else {
+                        state.copy(user = user)
+                    }
                 }
             }
         }

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.model.Story
+import com.example.moneypad.utils.toBackendUri
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -172,7 +173,7 @@ fun LibraryStoryItem(
             // Cover Image
             val placeholderCover = "https://picsum.photos/seed/${story.id}/200/300"
             AsyncImage(
-                model = story.coverImageUrl?.ifBlank { placeholderCover } ?: placeholderCover,
+                model = (story.coverImageUrl?.ifBlank { placeholderCover } ?: placeholderCover).toBackendUri(),
                 contentDescription = "Cover for ${story.title}",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

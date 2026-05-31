@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import com.example.moneypad.utils.HtmlConverter.parseHtmlToAnnotatedString
 import com.example.moneypad.utils.HtmlConverter.toHtmlString
+import com.example.moneypad.utils.toBackendUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,12 +88,15 @@ fun WritePartScreen(
     // Track last saved state to avoid showing "Save as Draft" dialog after publishing/saving
     var lastSavedTitle by remember(partToEdit) { mutableStateOf(partToEdit?.title ?: "") }
     var lastSavedContent by remember(partToEdit) { mutableStateOf(partToEdit?.content ?: "") }
+    var lastSavedHeaderImageUrl by remember(partToEdit) { mutableStateOf(partToEdit?.headerImageUrl ?: "") }
 
     val bgColor = MaterialTheme.colorScheme.background
     val textColor = MaterialTheme.colorScheme.onBackground
 
-    val hasChanges = remember(title, content.annotatedString, lastSavedTitle, lastSavedContent) {
-        title != lastSavedTitle || content.annotatedString.toHtmlString() != lastSavedContent
+    val hasChanges = remember(title, content.annotatedString, headerImageUri, lastSavedTitle, lastSavedContent, lastSavedHeaderImageUrl) {
+        title != lastSavedTitle || 
+        content.annotatedString.toHtmlString() != lastSavedContent ||
+        (headerImageUri?.toString() ?: "") != lastSavedHeaderImageUrl
     }
 
     // Intercept the system back gesture/button
@@ -187,14 +191,15 @@ fun WritePartScreen(
 
     // Auto-save logic
     var savingStatus by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(title, content.annotatedString, currentPartId) {
+    LaunchedEffect(title, content.annotatedString, currentPartId, headerImageUri) {
         if (hasChanges) {
             savingStatus = "Saving..."
             kotlinx.coroutines.delay(1000) // Debounce
             
-            viewModel.savePartAsDraft(storyId, title, content.annotatedString.toHtmlString(), currentPartId)
+            viewModel.savePartAsDraft(storyId, title, content.annotatedString.toHtmlString(), currentPartId, headerImageUri?.toString())
             lastSavedTitle = title
             lastSavedContent = content.annotatedString.toHtmlString()
+            lastSavedHeaderImageUrl = headerImageUri?.toString() ?: ""
             savingStatus = "Saved"
         }
     }
@@ -228,10 +233,11 @@ fun WritePartScreen(
                                 onClick = {
                                     expanded = false
                                     if (title.isNotBlank() && content.annotatedString.text.isNotBlank()) {
-                                        viewModel.addPartToStory(storyId, title, content.annotatedString.toHtmlString(), currentPartId, true)
+                                        viewModel.addPartToStory(storyId, title, content.annotatedString.toHtmlString(), currentPartId, true, headerImageUri?.toString())
                                         isPublished = true
                                         lastSavedTitle = title
                                         lastSavedContent = content.annotatedString.toHtmlString()
+                                        lastSavedHeaderImageUrl = headerImageUri?.toString() ?: ""
                                         android.widget.Toast.makeText(context, "Part published", android.widget.Toast.LENGTH_SHORT).show()
                                         onNavigateBack()
                                     }
@@ -303,7 +309,7 @@ fun WritePartScreen(
                 ) {
                     if (headerImageUri != null) {
                         coil.compose.AsyncImage(
-                            model = headerImageUri,
+                            model = headerImageUri.toString().toBackendUri(),
                             contentDescription = "Header Image",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -467,7 +473,7 @@ fun WritePartScreen(
                                     if (start < content.text.length) {
                                         val boundingBox = layout.getBoundingBox(start)
                                         coil.compose.AsyncImage(
-                                            model = annotation.item,
+                                            model = annotation.item.toBackendUri(),
                                             contentDescription = "Inline Image",
                                             modifier = Modifier
                                                 .absoluteOffset(

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.example.moneypad.utils.ImageUtils
+import com.example.moneypad.utils.toBackendUri
 
 import java.io.File
 
@@ -137,7 +138,7 @@ fun CreateStoryScreen(
                 ) {
                     if (imageUri != null) {
                         AsyncImage(
-                            model = imageUri,
+                            model = imageUri?.toString().toBackendUri(),
                             contentDescription = "Selected Cover",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop

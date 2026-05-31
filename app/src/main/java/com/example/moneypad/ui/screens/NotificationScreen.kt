@@ -35,6 +35,7 @@ import com.example.moneypad.R
 import com.example.moneypad.data.MoneyPadRepository
 import com.example.moneypad.data.model.Notification
 import com.example.moneypad.ui.components.VerifiedIcon
+import com.example.moneypad.utils.toBackendUri
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -142,7 +143,7 @@ fun NotificationItem(
                 )
             } else if (notification.actorProfileImageUrl != null) {
                 AsyncImage(
-                    model = notification.actorProfileImageUrl,
+                    model = notification.actorProfileImageUrl.toBackendUri(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

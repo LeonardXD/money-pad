@@ -30,6 +30,7 @@ import com.example.moneypad.data.model.User
 import com.example.moneypad.ui.components.CarouselStoryCard
 import com.example.moneypad.ui.components.StoryCard
 import com.example.moneypad.ui.components.VerifiedIcon
+import com.example.moneypad.utils.toBackendUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,8 +116,8 @@ fun ExploreScreen(
         "Poetry"
     )
 
-    val stories by viewModel.search(searchQuery, selectedGenre).collectAsState(initial = emptyList())
-    val authors by viewModel.searchAuthors(searchQuery).collectAsState(initial = emptyList())
+    val stories by remember(searchQuery, selectedGenre) { viewModel.search(searchQuery, selectedGenre) }.collectAsState(initial = emptyList())
+    val authors by remember(searchQuery) { viewModel.searchAuthors(searchQuery) }.collectAsState(initial = emptyList())
     
     val continueReading by viewModel.continueReadingStories.collectAsState()
     val recommendedStories by viewModel.recommendedStories.collectAsState()
@@ -336,7 +337,7 @@ fun AuthorSearchItem(author: User, onClick: () -> Unit) {
             ) {
                 if (author.profileImageUrl != null) {
                     AsyncImage(
-                        model = author.profileImageUrl,
+                        model = author.profileImageUrl.toBackendUri(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop

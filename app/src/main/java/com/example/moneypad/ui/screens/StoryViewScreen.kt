@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.moneypad.data.MoneyPadRepository
+import com.example.moneypad.utils.toBackendUri
 import com.example.moneypad.ui.components.BannerAdView
 import com.example.moneypad.ui.components.VerifiedIcon
 import java.text.SimpleDateFormat
@@ -283,7 +284,7 @@ fun StoryViewScreen(
                             ) {
                                 if (currentStory.coverImageUrl != null) {
                                     AsyncImage(
-                                        model = currentStory.coverImageUrl,
+                                        model = currentStory.coverImageUrl.toBackendUri(),
                                         contentDescription = "Cover Image",
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
@@ -327,7 +328,7 @@ fun StoryViewScreen(
                                     ) {
                                         if (authorProfileImageUrl != null) {
                                             AsyncImage(
-                                                model = authorProfileImageUrl,
+                                                model = authorProfileImageUrl.toBackendUri(),
                                                 contentDescription = null,
                                                 modifier = Modifier.fillMaxSize(),
                                                 contentScale = ContentScale.Crop
@@ -540,7 +541,7 @@ fun StoryViewScreen(
                                                 ) {
                                                     if (review.userProfileImageUrl != null) {
                                                         AsyncImage(
-                                                            model = review.userProfileImageUrl,
+                                                            model = review.userProfileImageUrl.toBackendUri(),
                                                             contentDescription = null,
                                                             modifier = Modifier.fillMaxSize(),
                                                             contentScale = ContentScale.Crop
