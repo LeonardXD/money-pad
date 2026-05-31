@@ -9,7 +9,7 @@ data class User(
     val username: String,
     val email: String,
     val password: String = "",
-    val bio: String = "",
+    val bio: String? = null,
     val followers: Int = 0,
     val following: Int = 0,
     val profileImageUrl: String? = null,

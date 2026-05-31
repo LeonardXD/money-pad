@@ -34,3 +34,40 @@ object ImageUtils {
         return context.contentResolver.getType(uri)?.substringAfterLast("/") ?: "jpg"
     }
 }
+
+fun String?.toBackendUri(): String? {
+    if (this.isNullOrBlank()) return null
+    
+    // Check if it's a local URI/path
+    if (startsWith("content://") || startsWith("file://") || startsWith("/")) {
+        return this
+    }
+    
+    // Check if it's a relative path
+    val cleanPath = when {
+        startsWith("backend/uploads/") -> substringAfter("backend/")
+        startsWith("uploads/") -> this
+        !startsWith("http") -> "uploads/$this"
+        else -> null
+    }
+    
+    if (cleanPath != null) {
+        return com.example.moneypad.data.remote.RetrofitClient.BASE_URL + cleanPath
+    }
+    
+    // If it's an absolute HTTP URL, handle trycloudflare.com dynamic subdomains
+    if (startsWith("http")) {
+        if (contains("trycloudflare.com")) {
+            val pathPart = substringAfter("trycloudflare.com/")
+            val pathWithoutBackend = if (pathPart.startsWith("backend/")) {
+                pathPart.substringAfter("backend/")
+            } else {
+                pathPart
+            }
+            return com.example.moneypad.data.remote.RetrofitClient.BASE_URL + pathWithoutBackend
+        }
+        return this
+    }
+    
+    return this
+}

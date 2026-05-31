@@ -1,17 +1,29 @@
 package com.example.moneypad.data
 
 import android.content.Context
+import android.net.Uri
 import com.example.moneypad.data.dao.MoneyPadDao
 import com.example.moneypad.data.model.*
+import com.example.moneypad.data.remote.RetrofitClient
+import com.example.moneypad.utils.ImageUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.UUID
+import org.json.JSONObject
 
 private const val SESSION_DURATION_MS = 7L * 24 * 60 * 60 * 1000 // 7 days
 private const val MINIMUM_ONBOARDING_AGE = 16
@@ -28,9 +40,20 @@ private val DEFAULT_STORY_GENRES = listOf(
 class MoneyPadRepository(private val context: Context, private val dao: MoneyPadDao) {
 
     private val sharedPreferences = context.getSharedPreferences("moneypad_prefs", Context.MODE_PRIVATE)
+    private val api = RetrofitClient.apiService
+    private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     var currentUserId: String = sharedPreferences.getString("userId", "") ?: ""
     var currentUsername: String = sharedPreferences.getString("username", "") ?: ""
+
+    private fun parseErrorMessage(errorBody: String?, defaultMessage: String): String {
+        if (errorBody.isNullOrBlank()) return defaultMessage
+        return try {
+            JSONObject(errorBody).getString("error")
+        } catch (e: Exception) {
+            errorBody
+        }
+    }
 
     companion object {
         const val OFFICIAL_USER_ID = "moneypad_official_id"
@@ -74,7 +97,8 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 password = OFFICIAL_PASSWORD,
                 bio = "Official Money Pad Account",
                 onboardingCompleted = true,
-                onboardingStep = 3
+                onboardingStep = 3,
+                isVerified = true
             )
             dao.insertUser(officialUser)
         }
@@ -82,44 +106,74 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     // ── Notifications ────────────────────────────────────────────────────────
 
-    fun getNotifications(): Flow<List<Notification>> = dao.getNotificationsForUser(currentUserId)
-
-    fun getUnreadNotificationCount(): Flow<Int> = dao.getUnreadNotificationCount(currentUserId)
-
-    suspend fun markNotificationAsRead(notificationId: String) = dao.markNotificationAsRead(notificationId)
-
-    suspend fun markAllNotificationsAsRead() = dao.markAllNotificationsAsRead(currentUserId)
-
-    private suspend fun notifyFollowers(type: String, story: Story? = null, part: StoryPart? = null) {
-        val followers = dao.getFollowers(currentUserId).firstOrNull() ?: emptyList()
-        val currentUser = dao.getUser(currentUserId).firstOrNull()
-        followers.forEach { follower ->
-            dao.insertNotification(
-                Notification(
-                    id = UUID.randomUUID().toString(),
-                    userId = follower.id,
-                    type = type,
-                    actorId = currentUserId,
-                    actorName = currentUsername,
-                    actorProfileImageUrl = currentUser?.profileImageUrl,
-                    storyId = story?.id,
-                    storyTitle = story?.title,
-                    partId = part?.id,
-                    partTitle = part?.title,
-                    isActorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
-                )
-            )
+    fun getNotifications(): Flow<List<Notification>> {
+        if (currentUserId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getNotifications(currentUserId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertNotification(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
+        return dao.getNotificationsForUser(currentUserId)
+    }
+
+    fun getUnreadNotificationCount(): Flow<Int> {
+        if (currentUserId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getNotifications(currentUserId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertNotification(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getUnreadNotificationCount(currentUserId)
+    }
+
+    suspend fun markNotificationAsRead(notificationId: String) {
+        try {
+            api.markNotificationAsRead(mapOf("notificationId" to notificationId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.markNotificationAsRead(notificationId)
+    }
+
+    suspend fun markAllNotificationsAsRead() {
+        try {
+            api.markAllNotificationsAsRead(mapOf("userId" to currentUserId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.markAllNotificationsAsRead(currentUserId)
     }
 
     // ── Auth ──────────────────────────────────────────────────────────────────
 
     suspend fun isUsernameTaken(username: String): Boolean {
-        return dao.getUserByUsername(username) != null
+        return try {
+            val response = api.checkUsername(mapOf("username" to username))
+            response.body()?.get("taken") ?: (dao.getUserByUsername(username) != null)
+        } catch (e: Exception) {
+            dao.getUserByUsername(username) != null
+        }
     }
 
     suspend fun isEmailTaken(email: String): Boolean {
-        return dao.getUserByEmail(email) != null
+        return try {
+            val response = api.checkEmail(mapOf("email" to email))
+            response.body()?.get("taken") ?: (dao.getUserByEmail(email) != null)
+        } catch (e: Exception) {
+            dao.getUserByEmail(email) != null
+        }
     }
 
     suspend fun signup(
@@ -128,116 +182,81 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         password: String,
         referrerUsername: String = ""
     ): Result<User> {
-        if (dao.getUserByUsername(username) != null)
-            return Result.failure(Exception("Username already taken"))
-        if (dao.getUserByEmail(email) != null)
-            return Result.failure(Exception("Email already registered"))
-
-        // Validate referrer if provided
-        val validatedReferrer = if (referrerUsername.isNotBlank()) {
-            val referrer = dao.getUserByUsername(referrerUsername)
-            if (referrer == null) return Result.failure(Exception("Referrer username not found"))
-            referrerUsername
-        } else ""
-
-        val user = User(
-            id = UUID.randomUUID().toString(),
-            username = username,
-            email = email,
-            password = password,
-            referredBy = validatedReferrer,
-            signupTimestamp = System.currentTimeMillis(),
-            loginTimestamp = System.currentTimeMillis()
-        )
-        dao.insertUser(user)
-
-        // Welcome Notification
-        dao.insertNotification(
-            Notification(
-                id = UUID.randomUUID().toString(),
-                userId = user.id,
-                type = "WELCOME",
-                actorId = "SYSTEM",
-                actorName = "Money Pad Team",
-                isActorVerified = true
-            )
-        )
-
-        // Previous Announcements Notification for New User
-        val announcements = dao.getConversationsForAuthor(OFFICIAL_USER_ID).firstOrNull() ?: emptyList()
-        announcements.forEach { announcement ->
-            dao.insertNotification(
-                Notification(
-                    id = UUID.randomUUID().toString(),
-                    userId = user.id,
-                    type = "CONVERSATION",
-                    actorId = OFFICIAL_USER_ID,
-                    actorName = OFFICIAL_USERNAME,
-                    actorProfileImageUrl = null, // Can fetch if needed, but official logo is default
-                    storyId = OFFICIAL_USER_ID,
-                    partId = announcement.id,
-                    content = announcement.message,
-                    timestamp = announcement.timestamp,
-                    isActorVerified = true
+        return try {
+            val response = api.signup(
+                mapOf(
+                    "username" to username,
+                    "email" to email,
+                    "password" to password,
+                    "referrerUsername" to referrerUsername
                 )
             )
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!
+                dao.insertUser(user)
+                
+                // Auto-create local follow to match PHP side local state
+                dao.insertFollow(Follow(user.id, OFFICIAL_USER_ID))
+                dao.updateFollowing(user.id, 1)
+                
+                Result.success(user)
+            } else {
+                val errorMsg = parseErrorMessage(response.errorBody()?.string(), "Signup failed")
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
-
-        // Credit referrer
-        if (validatedReferrer.isNotBlank()) {
-            dao.incrementReferralCount(validatedReferrer)
-        }
-
-        // Auto-follow official account
-        dao.insertFollow(Follow(user.id, OFFICIAL_USER_ID))
-        dao.updateFollowing(user.id, 1)
-        dao.updateFollowers(OFFICIAL_USER_ID, 1)
-
-        return Result.success(user)
     }
 
     suspend fun updateReferrer(referrerUsername: String): Result<Unit> {
-        val referrer = dao.getUserByUsername(referrerUsername)
-        if (referrer == null) return Result.failure(Exception("Referrer username not found"))
-        if (referrerUsername == currentUsername) return Result.failure(Exception("You cannot refer yourself"))
-        
-        dao.updateReferrer(currentUserId, referrerUsername)
-        dao.incrementReferralCount(referrerUsername)
-        return Result.success(Unit)
+        return try {
+            val response = api.updateSettings(
+                mapOf(
+                    "userId" to currentUserId,
+                    "username" to currentUsername,
+                    "referredBy" to referrerUsername
+                )
+            )
+            if (response.isSuccessful) {
+                dao.updateReferrer(currentUserId, referrerUsername)
+                dao.incrementReferralCount(referrerUsername)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Referral update failed")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun claimReferralReward() {
         if (currentUserId.isNotEmpty()) {
-            val user = dao.getUser(currentUserId).firstOrNull() ?: return
-            if (user.isReferralRewardClaimed) return
+            try {
+                val response = api.claimReferralReward(mapOf("userId" to currentUserId))
+                if (response.isSuccessful) {
+                    val user = dao.getUser(currentUserId).firstOrNull() ?: return
+                    if (user.isReferralRewardClaimed) return
 
-            var referrerId: String? = null
-            var notification: Notification? = null
+                    var referrerId: String? = null
 
-            // Prepare referrer credit and notification
-            if (user.referredBy.isNotBlank()) {
-                val referrer = dao.getUserByUsername(user.referredBy)
-                if (referrer != null) {
-                    referrerId = referrer.id
-                    notification = Notification(
-                        id = UUID.randomUUID().toString(),
-                        userId = referrer.id,
-                        type = "REFERRAL_REWARD",
-                        actorId = currentUserId,
-                        actorName = currentUsername,
-                        actorProfileImageUrl = user.profileImageUrl,
-                        content = "You earned 10 coins because $currentUsername used your referral!"
+                    if (user.referredBy.isNotBlank()) {
+                        val referrer = dao.getUserByUsername(user.referredBy)
+                        if (referrer != null) {
+                            referrerId = referrer.id
+                        }
+                    }
+
+                    dao.claimReferralRewardTransaction(
+                        userId = currentUserId,
+                        amount = 10,
+                        referrerId = referrerId,
+                        notification = null
                     )
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-
-            // Execute atomically
-            dao.claimReferralRewardTransaction(
-                userId = currentUserId,
-                amount = 10,
-                referrerId = referrerId,
-                notification = notification
-            )
         }
     }
 
@@ -248,11 +267,22 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     }
 
     suspend fun login(identifier: String, password: String): Result<User> {
-        // Handle hardcoded official user login
-        if ((identifier == OFFICIAL_USERNAME || identifier == OFFICIAL_EMAIL) && password == OFFICIAL_PASSWORD) {
-            ensureOfficialUserExists()
-            val user = dao.getUser(OFFICIAL_USER_ID).firstOrNull()
-            return if (user != null) {
+        return try {
+            val response = api.login(mapOf("identifier" to identifier, "password" to password))
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!
+                currentUserId = user.id
+                currentUsername = user.username
+                dao.insertUser(user)
+                saveLoginState(currentUserId, currentUsername)
+                Result.success(user)
+            } else {
+                val errorMsg = parseErrorMessage(response.errorBody()?.string(), "Invalid username or password")
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            val user = dao.login(identifier, password)
+            if (user != null) {
                 currentUserId = user.id
                 currentUsername = user.username
                 val now = System.currentTimeMillis()
@@ -260,86 +290,120 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
                 saveLoginState(currentUserId, currentUsername)
                 Result.success(user)
             } else {
-                Result.failure(Exception("Critical Error: Official user not found"))
+                Result.failure(Exception("Network unavailable and credentials not cached."))
             }
-        }
-
-        val user = dao.login(identifier, password)
-        return if (user != null) {
-            currentUserId = user.id
-            currentUsername = user.username
-            val now = System.currentTimeMillis()
-            dao.updateLoginTimestamp(user.id, now)
-            saveLoginState(currentUserId, currentUsername)
-            Result.success(user)
-        } else {
-            Result.failure(Exception("Invalid username or password"))
         }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    fun getUser(userId: String): Flow<User?> = dao.getUser(userId).flatMapLatest { user ->
-        if (user != null) flowOf(user)
-        else dao.getUserByUsernameFlow(userId)
+    fun getUser(userId: String): Flow<User?> {
+        if (userId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getUser(userId)
+                    if (response.isSuccessful && response.body() != null) {
+                        dao.insertUser(response.body()!!)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getUser(userId).flatMapLatest { user ->
+            if (user != null) flowOf(user)
+            else dao.getUserByUsernameFlow(userId)
+        }
     }
 
-    fun getCurrentUser(): Flow<User?> = dao.getUser(currentUserId)
+    fun getCurrentUser(): Flow<User?> = getUser(currentUserId)
 
     suspend fun initUser() {
-        // Ensure official user exists
         ensureOfficialUserExists()
-
-        // Expire session if older than 7 days
         if (currentUserId.isNotEmpty() && !hasActiveSession()) {
             logout()
+        } else if (currentUserId.isNotEmpty()) {
+            try {
+                val response = api.getUser(currentUserId)
+                if (response.isSuccessful && response.body() != null) {
+                    dao.insertUser(response.body()!!)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
     suspend fun earnReaderCoins(amount: Int) {
         if (currentUserId.isNotEmpty()) {
+            try {
+                api.updateAdFree(mapOf("userId" to currentUserId, "coinsDelta" to amount))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             dao.updateReaderCoins(currentUserId, amount)
         }
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
-    /**
-     * Validates the new username isn't taken by someone else, then persists settings.
-     */
     suspend fun updateSettings(
         username: String,
         birthday: String,
         gender: String,
         preferredGenres: String
     ): Result<Unit> {
-        val existing = dao.getUserByUsername(username)
-        if (existing != null && existing.id != currentUserId) {
-            return Result.failure(Exception("Username already taken"))
+        return try {
+            val response = api.updateSettings(
+                mapOf(
+                    "userId" to currentUserId,
+                    "username" to username,
+                    "birthday" to birthday,
+                    "gender" to gender,
+                    "preferredGenres" to preferredGenres
+                )
+            )
+            if (response.isSuccessful) {
+                dao.updateUserSettings(currentUserId, username, birthday, gender, preferredGenres)
+                currentUsername = username
+                sharedPreferences.edit().putString("username", username).apply()
+
+                val user = dao.getUser(currentUserId).firstOrNull() ?: return Result.success(Unit)
+                dao.updateConversationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
+                dao.updateNotificationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
+                dao.updateReviewsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
+                dao.updatePartAnnotationsSyncInfo(currentUserId, username, user.isVerified)
+                dao.updateStoriesSyncInfo(currentUserId, username, user.isVerified)
+                
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Update settings failed")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
         }
-        dao.updateUserSettings(currentUserId, username, birthday, gender, preferredGenres)
-        currentUsername = username
-        sharedPreferences.edit().putString("username", username).apply()
-        
-        // Sync user info across other tables
-        val user = dao.getUser(currentUserId).firstOrNull() ?: return Result.success(Unit)
-        dao.updateConversationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
-        dao.updateNotificationsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
-        dao.updateReviewsSyncInfo(currentUserId, username, user.profileImageUrl, user.isVerified)
-        dao.updatePartAnnotationsSyncInfo(currentUserId, username, user.isVerified)
-        dao.updateStoriesSyncInfo(currentUserId, username, user.isVerified)
-        
-        return Result.success(Unit)
     }
 
-    fun getAvailableGenres(): Flow<List<String>> = dao.getAllStoryGenres().map { genreRows ->
-        val discovered = genreRows
-            .flatMap { row -> row.split(",") }
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
+    fun getAvailableGenres(): Flow<List<String>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getAvailableGenres()
+                if (response.isSuccessful && response.body() != null) {
+                    // Handled automatically via local aggregation if stories sync
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getAllStoryGenres().map { genreRows ->
+            val discovered = genreRows
+                .flatMap { row -> row.split(",") }
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .sorted()
 
-        (discovered + DEFAULT_STORY_GENRES).distinct()
+            (discovered + DEFAULT_STORY_GENRES).distinct()
+        }
     }
 
     suspend fun saveOnboardingGender(gender: String): Result<Unit> {
@@ -349,8 +413,17 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             return Result.failure(Exception("Choose a gender to continue"))
         }
 
-        dao.updateOnboardingGender(currentUserId, normalizedGender)
-        return Result.success(Unit)
+        return try {
+            val response = api.onboardingGender(mapOf("userId" to currentUserId, "gender" to normalizedGender))
+            if (response.isSuccessful) {
+                dao.updateOnboardingGender(currentUserId, normalizedGender)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Gender update failed")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun saveOnboardingBirthday(birthday: String): Result<Unit> {
@@ -369,8 +442,17 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             return Result.failure(Exception("You must be at least 16 years old"))
         }
 
-        dao.updateOnboardingBirthday(currentUserId, birthday)
-        return Result.success(Unit)
+        return try {
+            val response = api.onboardingBirthday(mapOf("userId" to currentUserId, "birthday" to birthday))
+            if (response.isSuccessful) {
+                dao.updateOnboardingBirthday(currentUserId, birthday)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Birthday update failed")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun saveOnboardingGenres(genres: List<String>): Result<Unit> {
@@ -379,8 +461,17 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             return Result.failure(Exception("Choose up to 5 genres"))
         }
 
-        dao.updatePreferredGenres(currentUserId, selectedGenres.joinToString(","))
-        return Result.success(Unit)
+        return try {
+            val response = api.onboardingGenres(mapOf("userId" to currentUserId, "genres" to selectedGenres.joinToString(",")))
+            if (response.isSuccessful) {
+                dao.updatePreferredGenres(currentUserId, selectedGenres.joinToString(","))
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Genres update failed")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun completeOnboarding(genres: List<String>): Result<Unit> {
@@ -399,78 +490,291 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             return birthdayResult
         }
 
-        dao.markOnboardingCompleted(currentUserId)
-        return Result.success(Unit)
+        return try {
+            val response = api.completeOnboarding(mapOf("userId" to currentUserId))
+            if (response.isSuccessful) {
+                dao.markOnboardingCompleted(currentUserId)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Failed to complete onboarding")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> {
-        val stored = dao.getPassword(currentUserId)
-        if (stored != currentPassword) return Result.failure(Exception("Current password is incorrect"))
-        dao.updatePassword(currentUserId, newPassword)
-        return Result.success(Unit)
+        return try {
+            val response = api.changePassword(
+                mapOf(
+                    "userId" to currentUserId,
+                    "currentPassword" to currentPassword,
+                    "newPassword" to newPassword
+                )
+            )
+            if (response.isSuccessful) {
+                dao.updatePassword(currentUserId, newPassword)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Failed to change password")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun uploadImage(file: File): Result<String> {
+        return try {
+            val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+            val body = MultipartBody.Part.createFormData("image", file.name, requestFile)
+            val response = api.uploadImage(body)
+            if (response.isSuccessful && response.body() != null) {
+                val url = response.body()!!["url"]
+                if (url != null) {
+                    Result.success(url)
+                } else {
+                    Result.failure(Exception("Upload response missing url"))
+                }
+            } else {
+                Result.failure(Exception("Upload failed: ${response.message()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun isLocalUri(uriString: String): Boolean {
+        return uriString.startsWith("content://") || 
+               uriString.startsWith("file://") || 
+               uriString.startsWith("/")
+    }
+
+    private fun getFileFromUriString(uriString: String): File? {
+        return try {
+            val cleanUri = if (uriString.startsWith("/")) {
+                Uri.fromFile(File(uriString))
+            } else {
+                Uri.parse(uriString)
+            }
+            val localPath = ImageUtils.saveImageToInternalStorage(context, cleanUri)
+            if (localPath != null) File(localPath) else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     // ── Profile ───────────────────────────────────────────────────────────────
 
     suspend fun updateUserProfile(bio: String, profileImageUrl: String?, coverImageUrl: String?) {
-        dao.updateUserProfile(currentUserId, bio, profileImageUrl, coverImageUrl)
+        var finalProfileUrl = profileImageUrl
+        var finalCoverUrl = coverImageUrl
+
+        if (profileImageUrl != null && isLocalUri(profileImageUrl)) {
+            val file = getFileFromUriString(profileImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalProfileUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
+        if (coverImageUrl != null && isLocalUri(coverImageUrl)) {
+            val file = getFileFromUriString(coverImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalCoverUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
+        try {
+            api.updateProfile(
+                mapOf(
+                    "userId" to currentUserId,
+                    "bio" to bio,
+                    "profileImageUrl" to finalProfileUrl,
+                    "coverImageUrl" to finalCoverUrl
+                )
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.updateUserProfile(currentUserId, bio, finalProfileUrl, finalCoverUrl)
         
-        // Sync user info across other tables
         val user = dao.getUser(currentUserId).firstOrNull() ?: return
-        dao.updateConversationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
-        dao.updateNotificationsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
-        dao.updateReviewsSyncInfo(currentUserId, user.username, profileImageUrl, user.isVerified)
+        dao.updateConversationsSyncInfo(currentUserId, user.username, finalProfileUrl, user.isVerified)
+        dao.updateNotificationsSyncInfo(currentUserId, user.username, finalProfileUrl, user.isVerified)
+        dao.updateReviewsSyncInfo(currentUserId, user.username, finalProfileUrl, user.isVerified)
         dao.updatePartAnnotationsSyncInfo(currentUserId, user.username, user.isVerified)
         dao.updateStoriesSyncInfo(currentUserId, user.username, user.isVerified)
     }
 
     // ── Social ────────────────────────────────────────────────────────────────
 
-    fun getFollowers(userId: String): Flow<List<User>> = dao.getFollowers(userId)
-    fun getFollowing(userId: String): Flow<List<User>> = dao.getFollowing(userId)
+    fun getFollowers(userId: String): Flow<List<User>> {
+        if (userId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getFollowers(userId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach {
+                            dao.insertUser(it)
+                            dao.insertFollow(Follow(followerId = it.id, followedId = userId))
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getFollowers(userId)
+    }
+
+    fun getFollowing(userId: String): Flow<List<User>> {
+        if (userId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getFollowing(userId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach {
+                            dao.insertUser(it)
+                            dao.insertFollow(Follow(followerId = userId, followedId = it.id))
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getFollowing(userId)
+    }
 
     suspend fun followUser(followedId: String) {
+        try {
+            api.followUser(mapOf("followerId" to currentUserId, "followedId" to followedId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.insertFollow(Follow(currentUserId, followedId))
         dao.updateFollowing(currentUserId, 1)
         dao.updateFollowers(followedId, 1)
-
-        // Notify the followed user
-        val currentUser = dao.getUser(currentUserId).firstOrNull()
-        dao.insertNotification(
-            Notification(
-                id = UUID.randomUUID().toString(),
-                userId = followedId,
-                type = "FOLLOW",
-                actorId = currentUserId,
-                actorName = currentUsername,
-                actorProfileImageUrl = currentUser?.profileImageUrl
-            )
-        )
     }
 
     suspend fun unfollowUser(followedId: String) {
         if (followedId == OFFICIAL_USER_ID) return // Cannot unfollow official account
+        try {
+            api.unfollowUser(mapOf("followerId" to currentUserId, "followedId" to followedId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.deleteFollow(currentUserId, followedId)
         dao.updateFollowing(currentUserId, -1)
         dao.updateFollowers(followedId, -1)
     }
 
-    fun isFollowing(followedId: String): Flow<Boolean> =
-        dao.isFollowing(currentUserId, followedId)
+    fun isFollowing(followedId: String): Flow<Boolean> {
+        if (currentUserId.isNotEmpty() && followedId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.isFollowing(currentUserId, followedId)
+                    if (response.isSuccessful) {
+                        val following = response.body()?.get("following") ?: false
+                        if (following) {
+                            dao.insertFollow(Follow(currentUserId, followedId))
+                        } else {
+                            dao.deleteFollow(currentUserId, followedId)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.isFollowing(currentUserId, followedId)
+    }
 
     // ── Stories ───────────────────────────────────────────────────────────────
 
-    fun getAllStories(): Flow<List<Story>> = dao.getAllStories()
+    fun getAllStories(): Flow<List<Story>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getAllStories()
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertStory(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getAllStories()
+    }
 
-    fun getPublishedStoriesByAuthor(authorId: String): Flow<List<Story>> =
-        dao.getPublishedStoriesByAuthor(authorId)
+    fun getPublishedStoriesByAuthor(authorId: String): Flow<List<Story>> {
+        if (authorId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getPublishedStoriesByAuthor(authorId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertStory(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getPublishedStoriesByAuthor(authorId)
+    }
 
-    fun getDraftStoriesByAuthor(authorId: String): Flow<List<Story>> =
-        dao.getDraftStoriesByAuthor(authorId)
+    fun getDraftStoriesByAuthor(authorId: String): Flow<List<Story>> {
+        if (authorId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getDraftStoriesByAuthor(authorId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertStory(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getDraftStoriesByAuthor(authorId)
+    }
 
-    suspend fun getStoryById(storyId: String): Story? = dao.getStoryById(storyId)
+    suspend fun getStoryById(storyId: String): Story? {
+        if (storyId.isNotEmpty()) {
+            try {
+                val response = api.getStoryById(storyId)
+                if (response.isSuccessful && response.body() != null) {
+                    dao.insertStory(response.body()!!)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getStoryById(storyId)
+    }
 
-    fun getStoryByIdFlow(storyId: String): Flow<Story?> = dao.getStoryByIdFlow(storyId)
+    fun getStoryByIdFlow(storyId: String): Flow<Story?> {
+        if (storyId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getStoryById(storyId)
+                    if (response.isSuccessful && response.body() != null) {
+                        dao.insertStory(response.body()!!)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getStoryByIdFlow(storyId)
+    }
 
     suspend fun createStory(
         title: String, genres: String, overview: String, coverImageUrl: String?,
@@ -478,18 +782,34 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     ) {
         val storyId = UUID.randomUUID().toString()
         val currentUser = dao.getUser(currentUserId).firstOrNull()
+
+        var finalCoverUrl = coverImageUrl
+        if (coverImageUrl != null && isLocalUri(coverImageUrl)) {
+            val file = getFileFromUriString(coverImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalCoverUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
         val story = Story(
             id = storyId,
             authorId = currentUserId, authorName = currentUsername,
             title = title, genres = genres, overview = overview,
-            coverImageUrl = coverImageUrl,
+            coverImageUrl = finalCoverUrl,
             isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
             isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         )
-        dao.insertStory(story)
-        if (isPublished) {
-            notifyFollowers("NEW_STORY", story = story)
+
+        try {
+            api.createStory(story)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        dao.insertStory(story)
     }
 
     suspend fun createStoryAndReturnId(
@@ -498,19 +818,35 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     ): String {
         val id = UUID.randomUUID().toString()
         val currentUser = dao.getUser(currentUserId).firstOrNull()
+
+        var finalCoverUrl = coverImageUrl
+        if (coverImageUrl != null && isLocalUri(coverImageUrl)) {
+            val file = getFileFromUriString(coverImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalCoverUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
         val story = Story(
             id = id,
             authorId = currentUserId, authorName = currentUsername,
             title = title, genres = genres, overview = overview,
-            coverImageUrl = coverImageUrl,
+            coverImageUrl = finalCoverUrl,
             isPublished = isPublished, isCompleted = isCompleted, isMature = isMature,
             lastUpdatedAt = System.currentTimeMillis(),
             isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         )
-        dao.insertStory(story)
-        if (isPublished) {
-            notifyFollowers("NEW_STORY", story = story)
+
+        try {
+            api.createStory(story)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        dao.insertStory(story)
         return id
     }
 
@@ -519,31 +855,66 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         if (story == null || story.isPublished || !canPublishStory(storyId)) {
             return false
         }
-        dao.publishStory(storyId, System.currentTimeMillis())
-        notifyFollowers("NEW_STORY", story = story)
+        val now = System.currentTimeMillis()
+        try {
+            api.publishStory(PublishStoryRequest(storyId, now))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.publishStory(storyId, now)
         return true
     }
 
-    suspend fun unpublishStory(storyId: String) = dao.unpublishStory(storyId, System.currentTimeMillis())
+    suspend fun unpublishStory(storyId: String) {
+        val now = System.currentTimeMillis()
+        try {
+            api.unpublishStory(PublishStoryRequest(storyId, now))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.unpublishStory(storyId, now)
+    }
 
     suspend fun updateStory(story: Story) {
-        val oldStory = dao.getStoryById(story.id)
+        var finalCoverUrl = story.coverImageUrl
+        if (story.coverImageUrl != null && isLocalUri(story.coverImageUrl)) {
+            val file = getFileFromUriString(story.coverImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalCoverUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
         val currentUser = dao.getUser(currentUserId).firstOrNull()
         val updatedStory = story.copy(
+            coverImageUrl = finalCoverUrl,
             isAuthorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
         )
-        dao.insertStory(updatedStory)
-        if (updatedStory.isPublished && (oldStory == null || !oldStory.isPublished)) {
-            notifyFollowers("NEW_STORY", story = updatedStory)
+        try {
+            api.updateStory(updatedStory)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        dao.insertStory(updatedStory)
     }
 
     suspend fun deleteStory(storyId: String) {
+        try {
+            api.deleteStory(mapOf("storyId" to storyId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.deleteStory(storyId)
         dao.deleteStoryParts(storyId)
     }
 
-    fun getStoriesByGenre(genre: String): Flow<List<Story>> = dao.getStoriesByGenre(genre)
+    fun getStoriesByGenre(genre: String): Flow<List<Story>> {
+        // Handled dynamically via Room triggers and general feed syncing
+        return dao.getStoriesByGenre(genre)
+    }
 
     fun getUpdatedStories(): Flow<List<Story>> = dao.getUpdatedStories()
 
@@ -551,31 +922,54 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     fun getReadPartsCount(storyId: String): Flow<Int> = dao.getReadPartsCountForStory(currentUserId, storyId)
 
-    suspend fun addStoryPart(storyId: String, title: String, content: String, order: Int, partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null): String {
+    suspend fun addStoryPart(
+        storyId: String, title: String, content: String, order: Int,
+        partId: String? = null, isPublished: Boolean = false, headerImageUrl: String? = null
+    ): String {
         val now = System.currentTimeMillis()
         val id = partId ?: UUID.randomUUID().toString()
         val oldPart = dao.getStoryPartById(id)
+
+        var finalHeaderUrl = headerImageUrl
+        if (headerImageUrl != null && isLocalUri(headerImageUrl)) {
+            val file = getFileFromUriString(headerImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalHeaderUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
         val part = StoryPart(
             id = id,
             storyId = storyId, title = title, content = content, order = oldPart?.order ?: order,
             publishedAt = getPublishedAtForSave(oldPart, isPublished, now),
             isPublished = isPublished,
             readCount = oldPart?.readCount ?: 0,
-            headerImageUrl = headerImageUrl
+            headerImageUrl = finalHeaderUrl
         )
+
+        try {
+            api.addStoryPart(part)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.insertStoryPart(part)
 
         if (isPublished) {
             val story = dao.getStoryById(storyId)
             if (story != null) {
                 if (!story.isPublished && canPublishStory(storyId)) {
+                    try {
+                        api.publishStory(PublishStoryRequest(storyId, now))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                     dao.publishStory(storyId, now)
-                    notifyFollowers("NEW_STORY", story = story)
                 } else {
                     dao.updateStoryLastUpdated(storyId, now)
-                    if (story.isPublished) {
-                        notifyFollowers("NEW_PART", story = story, part = part)
-                    }
                 }
             }
         } else {
@@ -584,9 +978,25 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         return id
     }
 
-    suspend fun updateStoryPart(partId: String, storyId: String, title: String, content: String, order: Int, isPublished: Boolean, headerImageUrl: String? = null) {
+    suspend fun updateStoryPart(
+        partId: String, storyId: String, title: String, content: String,
+        order: Int, isPublished: Boolean, headerImageUrl: String? = null
+    ) {
         val now = System.currentTimeMillis()
         val oldPart = dao.getStoryPartById(partId)
+
+        var finalHeaderUrl = headerImageUrl
+        if (headerImageUrl != null && isLocalUri(headerImageUrl)) {
+            val file = getFileFromUriString(headerImageUrl)
+            if (file != null) {
+                val uploadResult = uploadImage(file)
+                file.delete()
+                if (uploadResult.isSuccess) {
+                    finalHeaderUrl = uploadResult.getOrNull()
+                }
+            }
+        }
+
         val part = StoryPart(
             id = partId,
             storyId = storyId,
@@ -596,21 +1006,28 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             publishedAt = getPublishedAtForSave(oldPart, isPublished, now),
             isPublished = isPublished,
             readCount = oldPart?.readCount ?: 0,
-            headerImageUrl = headerImageUrl
+            headerImageUrl = finalHeaderUrl
         )
+
+        try {
+            api.updateStoryPart(part)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.insertStoryPart(part)
 
         if (isPublished) {
             val story = dao.getStoryById(storyId)
             if (story != null) {
                 if (!story.isPublished && canPublishStory(storyId)) {
+                    try {
+                        api.publishStory(PublishStoryRequest(storyId, now))
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                     dao.publishStory(storyId, now)
-                    notifyFollowers("NEW_STORY", story = story)
                 } else if (oldPart == null || !oldPart.isPublished) {
                     dao.updateStoryLastUpdated(storyId, now)
-                    if (story.isPublished) {
-                        notifyFollowers("NEW_PART", story = story, part = part)
-                    }
                 }
             }
         } else {
@@ -621,6 +1038,11 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun deleteStoryPart(partId: String) {
         val part = dao.getStoryPartById(partId)
         if (part != null) {
+            try {
+                api.deleteStoryPart(mapOf("partId" to partId))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             dao.deleteStoryPart(partId)
             unpublishStoryIfBelowMinimum(part.storyId, System.currentTimeMillis())
         }
@@ -634,23 +1056,55 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
 
     private suspend fun unpublishStoryIfBelowMinimum(storyId: String, timestamp: Long) {
         if (!canPublishStory(storyId)) {
+            try {
+                api.unpublishStory(PublishStoryRequest(storyId, timestamp))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             dao.unpublishStory(storyId, timestamp)
         }
     }
 
-    fun getPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPartsForStory(storyId)
+    fun getPartsForStory(storyId: String): Flow<List<StoryPart>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getPartsForStory(storyId, onlyPublished = false)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertStoryPart(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getPartsForStory(storyId)
+    }
 
-    fun getPublishedPartsForStory(storyId: String): Flow<List<StoryPart>> = dao.getPublishedPartsForStory(storyId)
+    fun getPublishedPartsForStory(storyId: String): Flow<List<StoryPart>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getPartsForStory(storyId, onlyPublished = true)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertStoryPart(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getPublishedPartsForStory(storyId)
+    }
 
     suspend fun recordRead(storyId: String) {
-        val story = dao.getStoryById(storyId) ?: return
+        try {
+            api.recordRead(mapOf("userId" to currentUserId, "storyId" to storyId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
+        val story = dao.getStoryById(storyId) ?: return
         val lastRead = dao.getLastReadTimestamp(currentUserId, storyId)
         val now = System.currentTimeMillis()
         val isAuthor = currentUserId == story.authorId
 
-        // For authors, we always allow views to increment for testing/responsiveness
-        // For others, we use the 30-minute session rule
         if (isAuthor || lastRead == null || (now - lastRead > 30 * 60 * 1000)) {
             if (lastRead == null) {
                 dao.incrementUniqueViews(storyId)
@@ -659,9 +1113,7 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
             }
             dao.incrementReadCount(storyId)
 
-            // Only track income if reader is NOT the author
             if (!isAuthor && lastRead == null) {
-                // Fetch author's verification status
                 val author = dao.getUser(story.authorId).firstOrNull()
                 val rate = if (author?.isVerified == true) 0.0005 else 0.0003
                 dao.updateAuthorIncome(story.authorId, rate)
@@ -672,9 +1124,13 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     suspend fun countQualifyingStories(userId: String): Int = dao.countQualifyingStories(userId)
 
     suspend fun verifyUser(userId: String) {
+        try {
+            api.verifyUser(mapOf("userId" to userId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.verifyUser(userId)
         
-        // Sync user info across other tables
         val user = dao.getUser(userId).firstOrNull() ?: return
         dao.updateConversationsSyncInfo(userId, user.username, user.profileImageUrl, true)
         dao.updateNotificationsSyncInfo(userId, user.username, user.profileImageUrl, true)
@@ -688,26 +1144,67 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val user = dao.getUser(currentUserId).firstOrNull() ?: return false
         if (user.readerCoins < 500) return false
         
-        dao.deductReaderCoins(currentUserId, 500)
         val ninetyMinFromNow = System.currentTimeMillis() + (90 * 60 * 1000)
+        try {
+            api.updateAdFree(mapOf("userId" to currentUserId, "timestamp" to ninetyMinFromNow, "permanent" to false))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.deductReaderCoins(currentUserId, 500)
         dao.updateAdFreeUntil(currentUserId, ninetyMinFromNow)
         return true
     }
 
     suspend fun upgradeToAdFreePermanent(): Boolean {
         if (currentUserId.isEmpty()) return false
+        val user = dao.getUser(currentUserId).firstOrNull() ?: return false
+        if (user.balance < 1499.0) return false
+
+        var apiSuccess = false
+        try {
+            val response = api.updateAdFree(mapOf("userId" to currentUserId, "timestamp" to 0, "permanent" to true))
+            if (response.isSuccessful && response.body()?.get("success") == true) {
+                apiSuccess = true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        if (!apiSuccess) return false
+
+        val now = System.currentTimeMillis()
+        val transactionId = UUID.randomUUID().toString()
+
+        dao.deductBalance(currentUserId, 1499.0)
         dao.markAdFreePermanently(currentUserId)
+        dao.insertTransaction(
+            Transaction(
+                id = transactionId,
+                userId = currentUserId,
+                amount = 1499.0,
+                method = "Ad-Free Upgrade",
+                accountInfo = "Permanent",
+                source = "REFERRAL",
+                timestamp = now,
+                status = "Completed"
+            )
+        )
         return true
     }
 
     suspend fun recordPartRead(storyId: String, partId: String) {
         if (currentUserId.isEmpty()) return
+        try {
+            api.recordPartRead(mapOf("userId" to currentUserId, "storyId" to storyId, "partId" to partId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         val wasAlreadyRead = dao.hasUserReadPart(currentUserId, partId)
         if (!wasAlreadyRead) {
             dao.incrementPartReadCount(partId)
         }
         dao.insertUserReadPart(
-            com.example.moneypad.data.model.UserReadPart(
+            UserReadPart(
                 userId = currentUserId,
                 partId = partId,
                 storyId = storyId,
@@ -717,64 +1214,120 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     }
 
     suspend fun recordPartView(partId: String) {
+        try {
+            api.recordPartView(mapOf("partId" to partId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.incrementPartReadCount(partId)
     }
 
     suspend fun withdraw(amount: Double, method: String, accountInfo: String, source: String = ""): Boolean {
         if (amount <= 0) return false
+        val transactionId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        try {
+            api.withdraw(
+                mapOf(
+                    "id" to transactionId,
+                    "userId" to currentUserId,
+                    "amount" to amount,
+                    "method" to method,
+                    "accountInfo" to accountInfo,
+                    "source" to source,
+                    "timestamp" to now
+                )
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         
         if (source == "AUTHOR") {
             dao.deductAuthorIncome(currentUserId, amount)
-            // Handle 5% commission for the referrer
-            val user = dao.getUser(currentUserId).firstOrNull()
-            if (user != null && user.referredBy.isNotBlank()) {
-                val commission = amount * 0.05
-                // We don't need a separate dao call to add commission if we calculate it on the fly, 
-                // but we need to ensure the referral stats correctly reflect this as "earned".
-            }
         } else if (source == "READER") {
-            // For readers, amount is in PHP, coins = amount * 100
             val coinsToDeduct = (amount * 100).toInt()
             dao.deductReaderCoins(currentUserId, coinsToDeduct)
-        } else if (source == "REFERRAL") {
-            // No direct deduction from user entity fields needed as it is calculated from transactions on the fly.
-            // Just need to ensure we don't withdraw more than available.
         } else {
             dao.deductBalance(currentUserId, amount)
         }
         
         dao.insertTransaction(
             Transaction(
-                id = UUID.randomUUID().toString(),
+                id = transactionId,
                 userId = currentUserId, amount = amount,
                 method = method, accountInfo = accountInfo,
-                source = source
+                source = source, timestamp = now
             )
         )
         return true
     }
 
-    fun getTransactions(userId: String): Flow<List<Transaction>> =
-        dao.getTransactionsForUser(userId)
+    fun getTransactions(userId: String): Flow<List<Transaction>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getTransactions(userId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertTransaction(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getTransactionsForUser(userId)
+    }
 
     fun getTotalWithdrawalsBySource(userId: String, source: String): Flow<Double> =
         dao.getTotalWithdrawalsBySource(userId, source).map { it ?: 0.0 }
 
-    fun getTotalReferralCoins(username: String): Flow<Int> =
-        dao.getTotalReferralCoins(username).map { it ?: 0 }
+    fun getTotalReferralCoins(username: String): Flow<Int> {
+        repositoryScope.launch {
+            try {
+                val response = api.getReferralStats(username)
+                if (response.isSuccessful && response.body() != null) {
+                    // Let the stats sync update other lists
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getTotalReferralCoins(username).map { it ?: 0 }
+    }
 
     fun getReferralAuthorWithdrawals(username: String): Flow<Double> =
         dao.getReferralAuthorWithdrawals(username).map { it ?: 0.0 }
 
-    fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> =
-        dao.searchStoriesExcludingAuthor(query, genre, currentUserId).map { stories ->
+    fun searchStories(query: String, genre: String = "All"): Flow<List<Story>> {
+        repositoryScope.launch {
+            try {
+                val response = api.searchStories(query, genre, currentUserId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertStory(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.searchStoriesExcludingAuthor(query, genre, currentUserId).map { stories ->
             if (genre == "All") stories else stories.filter { story -> story.hasGenre(genre) }
         }
+    }
 
     private fun Story.hasGenre(genre: String): Boolean =
         genres.split(",").map { it.trim() }.any { it.equals(genre, ignoreCase = true) }
 
-    fun searchAuthors(query: String): Flow<List<User>> = dao.searchAuthorsExcludingSelf(query, currentUserId)
+    fun searchAuthors(query: String): Flow<List<User>> {
+        repositoryScope.launch {
+            try {
+                val response = api.searchAuthors(query, currentUserId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertUser(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.searchAuthorsExcludingSelf(query, currentUserId)
+    }
 
     // ── Conversations ─────────────────────────────────────────────────────────
 
@@ -782,182 +1335,164 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val currentUser = dao.getUser(currentUserId).firstOrNull()
         val conversationId = UUID.randomUUID().toString()
         val isSenderVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
-        dao.insertConversation(
-            Conversation(
-                id = conversationId,
-                authorId = authorId, senderId = currentUserId,
-                senderName = currentUsername, message = message, 
-                senderProfileImageUrl = currentUser?.profileImageUrl,
-                parentId = parentId,
-                isSenderVerified = isSenderVerified
-            )
+        val now = System.currentTimeMillis()
+        val conv = Conversation(
+            id = conversationId,
+            authorId = authorId, senderId = currentUserId,
+            senderName = currentUsername, message = message, 
+            senderProfileImageUrl = currentUser?.profileImageUrl,
+            parentId = parentId,
+            isSenderVerified = isSenderVerified,
+            timestamp = now
         )
 
-        // Notification Logic
-        if (parentId == null) {
-            // New conversation post
-            if (authorId == currentUserId) {
-                // User posted on their own wall - Notify followers
-                val followers = dao.getFollowers(currentUserId).firstOrNull() ?: emptyList()
-                followers.forEach { follower ->
-                    dao.insertNotification(
-                        Notification(
-                            id = UUID.randomUUID().toString(),
-                            userId = follower.id,
-                            type = "CONVERSATION",
-                            actorId = currentUserId,
-                            actorName = currentUsername,
-                            actorProfileImageUrl = currentUser?.profileImageUrl,
-                            storyId = authorId, // Target profile ID
-                            partId = conversationId, // For direct navigation
-                            content = message,
-                            isActorVerified = isSenderVerified
-                        )
-                    )
-                }
-            } else {
-                // Someone else posted on the user's wall - Notify wall owner
-                dao.insertNotification(
-                    Notification(
-                        id = UUID.randomUUID().toString(),
-                        userId = authorId,
-                        type = "CONVERSATION",
-                        actorId = currentUserId,
-                        actorName = currentUsername,
-                        actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId, // Target profile ID
-                        partId = conversationId, // For direct navigation
-                        content = message,
-                        isActorVerified = isSenderVerified
-                    )
-                )
+        var success = false
+        try {
+            val response = api.sendMessage(conv)
+            if (response.isSuccessful && response.body()?.get("success") == true) {
+                success = true
             }
-        } else {
-            // Reply to a conversation
-            // 1. Notify the wall owner if the replier is NOT the wall owner
-            if (authorId != currentUserId) {
-                dao.insertNotification(
-                    Notification(
-                        id = UUID.randomUUID().toString(),
-                        userId = authorId,
-                        type = "REPLY",
-                        actorId = currentUserId,
-                        actorName = currentUsername,
-                        actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId, // Target profile ID
-                        partId = conversationId, // For direct navigation
-                        content = message,
-                        isActorVerified = isSenderVerified
-                    )
-                )
-            }
-            
-            // 2. Notify the parent message sender if they are not the replier and not the wall owner (who is already notified)
-            val parentConv = dao.getConversationById(parentId)
-            if (parentConv != null && parentConv.senderId != currentUserId && parentConv.senderId != authorId) {
-                dao.insertNotification(
-                    Notification(
-                        id = UUID.randomUUID().toString(),
-                        userId = parentConv.senderId,
-                        type = "REPLY",
-                        actorId = currentUserId,
-                        actorName = currentUsername,
-                        actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = authorId, // Target profile ID
-                        partId = conversationId, // For direct navigation
-                        content = message,
-                        isActorVerified = isSenderVerified
-                    )
-                )
-            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-
-        // 3. Mention Notifications
-        val mentionRegex = Regex("@(\\w+)")
-        val mentions = mentionRegex.findAll(message).map { it.groupValues[1] }.distinct()
-        mentions.forEach { mentionedUsername ->
-            if (mentionedUsername != currentUsername) {
-                val mentionedUser = dao.getUserByUsername(mentionedUsername)
-                if (mentionedUser != null) {
-                    dao.insertNotification(
-                        Notification(
-                            id = UUID.randomUUID().toString(),
-                            userId = mentionedUser.id,
-                            type = "MENTION",
-                            actorId = currentUserId,
-                            actorName = currentUsername,
-                            actorProfileImageUrl = currentUser?.profileImageUrl,
-                            storyId = authorId, // Target profile ID
-                            partId = conversationId,
-                            content = message,
-                            isActorVerified = isSenderVerified
-                        )
-                    )
-                }
-            }
+        if (success) {
+            dao.insertConversation(conv)
         }
     }
 
-    fun getConversations(authorId: String): Flow<List<Conversation>> =
-        dao.getConversationsForAuthor(authorId)
-
-    fun getReplies(parentId: String): Flow<List<Conversation>> = dao.getReplies(parentId)
-
-    suspend fun getConversation(id: String): Conversation? = dao.getConversationById(id)
-
-    suspend fun toggleConversationLike(conversationId: String, delta: Int) {
-        dao.updateConversationLikes(conversationId, delta)
-        
-        // Notification for Like
-        if (delta > 0) {
-            val conv = dao.getConversationById(conversationId)
-            val currentUser = dao.getUser(currentUserId).firstOrNull()
-            if (conv != null && conv.senderId != currentUserId) {
-                dao.insertNotification(
-                    Notification(
-                        id = UUID.randomUUID().toString(),
-                        userId = conv.senderId,
-                        type = "CONVERSATION_LIKE",
-                        actorId = currentUserId,
-                        actorName = currentUsername,
-                        actorProfileImageUrl = currentUser?.profileImageUrl,
-                        storyId = conv.authorId, // Target profile ID
-                        partId = conversationId,
-                        isActorVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
-                    )
-                )
+    fun getConversations(authorId: String): Flow<List<Conversation>> {
+        if (authorId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getConversations(authorId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertConversation(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
+        return dao.getConversationsForAuthor(authorId)
+    }
+
+    fun getReplies(parentId: String): Flow<List<Conversation>> {
+        if (parentId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getReplies(parentId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertConversation(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getReplies(parentId)
+    }
+
+    suspend fun getConversation(id: String): Conversation? {
+        // Can optionally sync from API if needed, fallback to DAO
+        return dao.getConversationById(id)
+    }
+
+    suspend fun toggleConversationLike(conversationId: String, delta: Int) {
+        try {
+            api.toggleConversationLike(
+                mapOf(
+                    "conversationId" to conversationId,
+                    "delta" to delta,
+                    "userId" to currentUserId
+                )
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.updateConversationLikes(conversationId, delta)
     }
 
     // ── Reviews ───────────────────────────────────────────────────────────────
 
     suspend fun addReview(storyId: String, rating: Int, comment: String) {
         val currentUser = dao.getUser(currentUserId).firstOrNull()
-        dao.insertReview(
-            Review(
-                id = UUID.randomUUID().toString(),
-                storyId = storyId, userId = currentUserId,
-                username = currentUsername, 
-                userProfileImageUrl = currentUser?.profileImageUrl,
-                rating = rating, comment = comment,
-                isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
-            )
+        val reviewId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        val review = Review(
+            id = reviewId,
+            storyId = storyId, userId = currentUserId,
+            username = currentUsername, 
+            userProfileImageUrl = currentUser?.profileImageUrl,
+            rating = rating, comment = comment,
+            isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID,
+            timestamp = now
         )
+
+        try {
+            api.addReview(review)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.insertReview(review)
     }
 
-    fun getReviewsForStory(storyId: String): Flow<List<Review>> =
-        dao.getReviewsForStory(storyId)
+    fun getReviewsForStory(storyId: String): Flow<List<Review>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getReviewsForStory(storyId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertReview(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getReviewsForStory(storyId)
+    }
 
-    fun hasUserReviewed(storyId: String): Flow<Boolean> =
-        dao.hasUserReviewed(storyId, currentUserId)
+    fun hasUserReviewed(storyId: String): Flow<Boolean> {
+        repositoryScope.launch {
+            try {
+                val response = api.hasUserReviewed(storyId, currentUserId)
+                if (response.isSuccessful && response.body() != null) {
+                    // Update locally if reviewed on server (represented in review flow)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.hasUserReviewed(storyId, currentUserId)
+    }
 
     // ── Likes ────────────────────────────────────────────────────────────────
 
-    fun isStoryLikedByUser(storyId: String): Flow<Boolean> =
-        dao.isStoryLikedByUser(currentUserId, storyId)
+    fun isStoryLikedByUser(storyId: String): Flow<Boolean> {
+        repositoryScope.launch {
+            try {
+                val response = api.isStoryLikedByUser(currentUserId, storyId)
+                if (response.isSuccessful) {
+                    val liked = response.body()?.get("liked") ?: false
+                    if (liked) {
+                        dao.insertStoryLike(UserStoryLike(currentUserId, storyId))
+                    } else {
+                        dao.deleteStoryLike(currentUserId, storyId)
+                    }
+                    dao.updateStoryLikesCount(storyId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.isStoryLikedByUser(currentUserId, storyId)
+    }
 
     suspend fun toggleStoryLike(storyId: String) {
+        try {
+            api.toggleStoryLike(mapOf("userId" to currentUserId, "storyId" to storyId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        
         val alreadyLiked = dao.isStoryLikedByUser(currentUserId, storyId).firstOrNull() ?: false
         if (alreadyLiked) {
             dao.deleteStoryLike(currentUserId, storyId)
@@ -980,21 +1515,29 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         val currentUser = dao.getUser(currentUserId).firstOrNull()
         val part = dao.getStoryPartById(partId)
         val storyId = part?.storyId
+        val annotationId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
 
-        dao.insertPartAnnotation(
-            PartAnnotation(
-                id = UUID.randomUUID().toString(),
-                partId = partId,
-                userId = currentUserId,
-                username = currentUsername,
-                selectedText = selectedText,
-                startIndex = startIndex,
-                endIndex = endIndex,
-                type = type,
-                content = content,
-                isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID
-            )
+        val annotation = PartAnnotation(
+            id = annotationId,
+            partId = partId,
+            userId = currentUserId,
+            username = currentUsername,
+            selectedText = selectedText,
+            startIndex = startIndex,
+            endIndex = endIndex,
+            type = type,
+            content = content,
+            isUserVerified = currentUser?.isVerified == true || currentUserId == OFFICIAL_USER_ID,
+            timestamp = now
         )
+
+        try {
+            api.addPartAnnotation(annotation)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.insertPartAnnotation(annotation)
 
         if (type == "COMMENT" && storyId != null) {
             dao.updateStoryCommentsCount(storyId)
@@ -1003,8 +1546,19 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         return storyId
     }
 
-    fun getAnnotationsForPart(partId: String): Flow<List<PartAnnotation>> =
-        dao.getAnnotationsForPart(partId)
+    fun getAnnotationsForPart(partId: String): Flow<List<PartAnnotation>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getAnnotationsForPart(partId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach { dao.insertPartAnnotation(it) }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getAnnotationsForPart(partId)
+    }
 
     // ── Library ───────────────────────────────────────────────────────────────
 
@@ -1013,15 +1567,50 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
         if (count >= 15) {
             return Result.failure(Exception("Library is full. Please remove a story before downloading again."))
         }
-        dao.insertLibraryStory(LibraryStory(currentUserId, storyId))
-        return Result.success(Unit)
+
+        val now = System.currentTimeMillis()
+        try {
+            val response = api.addStoryToLibrary(mapOf("userId" to currentUserId, "storyId" to storyId, "downloadedAt" to now))
+            if (response.isSuccessful) {
+                dao.insertLibraryStory(LibraryStory(currentUserId, storyId, now))
+                return Result.success(Unit)
+            } else {
+                return Result.failure(Exception(parseErrorMessage(response.errorBody()?.string(), "Library addition failed")))
+            }
+        } catch (e: Exception) {
+            // Local fallback
+            dao.insertLibraryStory(LibraryStory(currentUserId, storyId, now))
+            return Result.success(Unit)
+        }
     }
 
     suspend fun removeStoryFromLibrary(storyId: String) {
+        try {
+            api.removeStoryFromLibrary(mapOf("userId" to currentUserId, "storyId" to storyId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.deleteLibraryStory(currentUserId, storyId)
     }
 
-    fun getLibraryStories(): Flow<List<Story>> = dao.getLibraryStories(currentUserId)
+    fun getLibraryStories(): Flow<List<Story>> {
+        if (currentUserId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getLibraryStories(currentUserId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach {
+                            dao.insertStory(it)
+                            dao.insertLibraryStory(LibraryStory(currentUserId, it.id))
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getLibraryStories(currentUserId)
+    }
 
     fun isStoryInLibrary(storyId: String): Flow<Boolean> = dao.isStoryInLibrary(currentUserId, storyId)
 
@@ -1030,32 +1619,100 @@ class MoneyPadRepository(private val context: Context, private val dao: MoneyPad
     // ── Reading Lists ─────────────────────────────────────────────────────────
 
     suspend fun createReadingList(name: String, description: String = "") {
-        val readingList = ReadingList(
-            id = UUID.randomUUID().toString(),
+        val readingListId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        val list = ReadingList(
+            id = readingListId,
             userId = currentUserId,
             name = name,
-            description = description
+            description = description,
+            createdAt = now
         )
-        dao.insertReadingList(readingList)
+
+        try {
+            api.createReadingList(list)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.insertReadingList(list)
     }
 
     suspend fun deleteReadingList(listId: String) {
+        try {
+            api.deleteReadingList(mapOf("listId" to listId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.deleteReadingList(listId)
     }
 
-    fun getReadingLists(): Flow<List<ReadingList>> = dao.getReadingListsForUser(currentUserId)
+    fun getReadingLists(): Flow<List<ReadingList>> {
+        if (currentUserId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getReadingLists(currentUserId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertReadingList(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getReadingListsForUser(currentUserId)
+    }
 
-    fun getReadingLists(userId: String): Flow<List<ReadingList>> = dao.getReadingListsForUser(userId)
+    fun getReadingLists(userId: String): Flow<List<ReadingList>> {
+        if (userId.isNotEmpty()) {
+            repositoryScope.launch {
+                try {
+                    val response = api.getReadingLists(userId)
+                    if (response.isSuccessful && response.body() != null) {
+                        response.body()?.forEach { dao.insertReadingList(it) }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return dao.getReadingListsForUser(userId)
+    }
 
     suspend fun addStoryToReadingList(listId: String, storyId: String) {
-        dao.insertReadingListStory(ReadingListStory(listId, storyId))
+        val now = System.currentTimeMillis()
+        try {
+            api.addStoryToReadingList(mapOf("listId" to listId, "storyId" to storyId, "addedAt" to now))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        dao.insertReadingListStory(ReadingListStory(listId, storyId, now))
     }
 
     suspend fun removeStoryFromReadingList(listId: String, storyId: String) {
+        try {
+            api.removeStoryFromReadingList(mapOf("listId" to listId, "storyId" to storyId))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         dao.deleteReadingListStory(listId, storyId)
     }
 
-    fun getStoriesForReadingList(listId: String): Flow<List<Story>> = dao.getStoriesForReadingList(listId)
+    fun getStoriesForReadingList(listId: String): Flow<List<Story>> {
+        repositoryScope.launch {
+            try {
+                val response = api.getStoriesForReadingList(listId)
+                if (response.isSuccessful && response.body() != null) {
+                    response.body()?.forEach {
+                        dao.insertStory(it)
+                        dao.insertReadingListStory(ReadingListStory(listId, it.id))
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        return dao.getStoriesForReadingList(listId)
+    }
 
     suspend fun isStoryInReadingList(listId: String, storyId: String): Boolean = dao.isStoryInReadingList(listId, storyId)
 }
